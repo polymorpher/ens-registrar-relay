@@ -20,6 +20,7 @@ base.interceptors.request.use((config) => {
   // add any client instance specific params to config
   config.params.UID = appConfig.enom.uid
   config.params.PW = appConfig.enom.pw
+  config.params.TLD = appConfig.tld
   config.params.responseType = 'xml'
   config.params.version = '2'
   return config
@@ -67,10 +68,10 @@ const checkIsDomainAvailable = async ({ sld }) => {
       }
     }
   } = parsed
-  const isRegistered = parseInt(responseCode) === 210
-  const isReserved = (isPremium.toLowerCase() === 'false' &&
-    isPlatinum.toLowerCase() === 'false' &&
-    isEap.toLowerCase() === 'false')
+  const isRegistered = parseInt(responseCode) !== 210
+  const isReserved = (isPremium.toLowerCase() !== 'false' ||
+    isPlatinum.toLowerCase() !== 'false' ||
+    isEap.toLowerCase() !== 'false')
   const isAvailable = !isRegistered && !isReserved && regPrice < 50
   return { isAvailable, isReserved, isRegistered, regPrice, renewPrice, transferPrice, restorePrice, responseText }
 }
@@ -115,7 +116,7 @@ const purchaseDomain = async ({ sld }) => {
 }
 
 router.post('/check-domain', limiter(), async (req, res) => {
-  const sld = req.body
+  const { sld } = req.body
   if (!sld) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'missing fields', sld })
   }
@@ -124,6 +125,7 @@ router.post('/check-domain', limiter(), async (req, res) => {
       await checkIsDomainAvailable({ sld })
     res.json({ isAvailable, isReserved, isRegistered, regPrice, renewPrice, transferPrice, restorePrice, responseText })
   } catch (ex) {
+    console.error('[/check-domain]', { sld })
     console.error(ex)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'cannot process request' })
   }

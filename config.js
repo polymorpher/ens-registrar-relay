@@ -1,5 +1,5 @@
 require('dotenv').config()
-const DEBUG = process.env.RELAYER_DEBUG === 'true' || process.env.RELAYER_DEBUG === '1'
+const DEBUG = process.env.BACKEND_DEBUG === 'true' || process.env.BACKEND_DEBUG === '1'
 const config = {
   debug: DEBUG,
   dev: !(process.env.NODE_ENV === 'production'),

@@ -193,7 +193,7 @@ router.post('/purchase',
         domain, address, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime
       })
       Logger.log('[/purchase]', p)
-      res.json({ success, domainCreationDate, domainExpiryDate, traceId, reqTime })
+      res.json({ success, domainCreationDate, domainExpiryDate, responseText, traceId, reqTime })
     } catch (ex) {
       console.error(ex)
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })

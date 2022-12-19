@@ -9,7 +9,7 @@ const { getDomainRegistrationEvent } = require('../src/w3utils')
 const { v1: uuid } = require('uuid')
 const { Purchase } = require('../src/data/purchase')
 const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../src/enom-api') : require('../src/namecheap-api')
-const nodeIp = require('ip')
+const requestIp = require('request-ip')
 
 const limiter = (args) => rateLimit({
   windowMs: 1000 * 60,
@@ -25,7 +25,8 @@ router.get('/health', async (req, res) => {
 
 router.post('/check-domain', limiter(), async (req, res) => {
   const { sld } = req.body
-  const ip = getIp(req)
+  const ip = requestIp.getClientIp(req)
+  console.log(ip)
   if (!sld) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'missing fields', sld })
   }
@@ -74,7 +75,7 @@ router.post('/purchase',
           providedDomain: domain
         })
       }
-      const ip = nodeIp.address()
+      const ip = requestIp.getClientIp(req)
       const now = Date.now()
       const latestAllowedTime = parseInt(expires) - 365 * 3600 * 24 + 3600
       if (now > latestAllowedTime) {
@@ -116,7 +117,7 @@ router.post('/purchase',
 
 if (appConfig.allowAdminOverride) {
   router.post('/purchase-mock', async (req, res) => {
-    const ip = nodeIp.address()
+    const ip = requestIp.getClientIp(req)
     const { domain } = req.body
     const name = domain.split('.')[0]
     const { success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime } =

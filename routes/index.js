@@ -25,7 +25,7 @@ router.get('/health', async (req, res) => {
 
 router.post('/check-domain', limiter(), async (req, res) => {
   const { sld } = req.body
-  const ip = requestIp.getClientIp(req)
+  const ip = undefined // requestIp.getClientIp(req)
   if (!sld) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'missing fields', sld })
   }
@@ -74,7 +74,7 @@ router.post('/purchase',
           providedDomain: domain
         })
       }
-      const ip = requestIp.getClientIp(req)
+      const ip = undefined // requestIp.getClientIp(req)
       const now = Date.now()
       const latestAllowedTime = parseInt(expires) - 365 * 3600 * 24 + 3600
       if (now > latestAllowedTime) {
@@ -116,7 +116,7 @@ router.post('/purchase',
 
 if (appConfig.allowAdminOverride) {
   router.post('/purchase-mock', async (req, res) => {
-    const ip = requestIp.getClientIp(req)
+    const ip = undefined // requestIp.getClientIp(req)
     const { domain } = req.body
     const name = domain.split('.')[0]
     const { success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime } =

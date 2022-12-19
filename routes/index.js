@@ -8,7 +8,7 @@ const appConfig = require('../config')
 const { getDomainRegistrationEvent } = require('../src/w3utils')
 const { v1: uuid } = require('uuid')
 const { Purchase } = require('../src/data/purchase')
-const domainApiProvider = require('../src/enom-api')
+const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../src/enom-api') : require('../src/namecheap-api')
 
 const getIp = req => {
   const ips = (
@@ -34,12 +34,13 @@ router.get('/health', async (req, res) => {
 
 router.post('/check-domain', limiter(), async (req, res) => {
   const { sld } = req.body
+  const ip = getIp(req)
   if (!sld) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'missing fields', sld })
   }
   try {
     const { isAvailable, isReserved, isRegistered, regPrice, renewPrice, transferPrice, restorePrice, responseText } =
-      await domainApiProvider.checkIsDomainAvailable({ sld })
+      await domainApiProvider.checkIsDomainAvailable({ sld, ip })
     res.json({ isAvailable, isReserved, isRegistered, regPrice, renewPrice, transferPrice, restorePrice, responseText })
   } catch (ex) {
     console.error('[/check-domain]', { sld })
@@ -82,6 +83,7 @@ router.post('/purchase',
           providedDomain: domain
         })
       }
+      const ip = getIp(req)
       const now = Date.now()
       const latestAllowedTime = parseInt(expires) - 365 * 3600 * 24 + 3600
       if (now > latestAllowedTime) {
@@ -102,7 +104,7 @@ router.post('/purchase',
         return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain not available', ...checkResponseArgs })
       }
 
-      const { success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime } = await domainApiProvider.purchaseDomain({ sld: name })
+      const { success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime } = await domainApiProvider.purchaseDomain({ sld: name, ip })
       if (!success) {
         return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'purchase failed', domain: name, responseText })
       }

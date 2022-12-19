@@ -6,6 +6,7 @@ const config = {
   provider: process.env.PROVIDER,
   registrarController: process.env.REGISTRAR_CONTROLLER,
   tld: process.env.TLD || 'country',
+  registrarProvider: process.env.REGISTRAR_PROVIDER,
   enom: {
     test: process.env.ENOM_LIVE_RESELLER ? (process.env.ENOM_LIVE_RESELLER !== 'true') : DEBUG,
     uid: process.env.ENOM_UID,

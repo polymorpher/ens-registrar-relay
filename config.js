@@ -6,6 +6,7 @@ const config = {
   provider: process.env.PROVIDER,
   registrarController: process.env.REGISTRAR_CONTROLLER,
   tld: process.env.TLD || 'country',
+  allowAdminOverride: process.env.ALLOW_ADMIN_OVERRIDE === 'true',
   registrarProvider: process.env.REGISTRAR_PROVIDER,
   enom: {
     test: process.env.ENOM_LIVE_RESELLER ? (process.env.ENOM_LIVE_RESELLER !== 'true') : DEBUG,

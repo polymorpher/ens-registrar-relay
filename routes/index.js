@@ -9,17 +9,8 @@ const { getDomainRegistrationEvent } = require('../src/w3utils')
 const { v1: uuid } = require('uuid')
 const { Purchase } = require('../src/data/purchase')
 const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../src/enom-api') : require('../src/namecheap-api')
+const nodeIp = require('ip')
 
-const getIp = req => {
-  const ips = (
-    req.headers['cf-connecting-ip'] ||
-    req.headers['x-real-ip'] ||
-    req.headers['x-forwarded-for'] ||
-    req.connection.remoteAddress || ''
-  ).split(',')
-
-  return ips[0].trim()
-}
 const limiter = (args) => rateLimit({
   windowMs: 1000 * 60,
   max: 60,
@@ -83,7 +74,7 @@ router.post('/purchase',
           providedDomain: domain
         })
       }
-      const ip = getIp(req)
+      const ip = nodeIp.address()
       const now = Date.now()
       const latestAllowedTime = parseInt(expires) - 365 * 3600 * 24 + 3600
       if (now > latestAllowedTime) {
@@ -122,4 +113,19 @@ router.post('/purchase',
       }
     }
   })
+
+if (appConfig.allowAdminOverride) {
+  router.post('/purchase-mock', async (req, res) => {
+    const ip = nodeIp.address()
+    const { domain } = req.body
+    const name = domain.split('.')[0]
+    const { success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime } =
+      await domainApiProvider.purchaseDomain({ sld: name, ip })
+
+    if (!success) {
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'purchase failed', domain: name, responseText })
+    }
+    res.json({ success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime })
+  })
+}
 module.exports = router

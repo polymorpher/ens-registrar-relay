@@ -10,6 +10,16 @@ const { v1: uuid } = require('uuid')
 const { Purchase } = require('../src/data/purchase')
 const domainApiProvider = require('../src/enom-api')
 
+const getIp = req => {
+  const ips = (
+    req.headers['cf-connecting-ip'] ||
+    req.headers['x-real-ip'] ||
+    req.headers['x-forwarded-for'] ||
+    req.connection.remoteAddress || ''
+  ).split(',')
+
+  return ips[0].trim()
+}
 const limiter = (args) => rateLimit({
   windowMs: 1000 * 60,
   max: 60,

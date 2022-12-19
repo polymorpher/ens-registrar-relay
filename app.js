@@ -19,13 +19,13 @@ app.locals.ENV_DEVELOPMENT = env === 'development'
 
 app.set('trust proxy', true)
 
-if (config.debug) {
-  console.log('config', config)
-}
+// if (config.debug) {
+//   console.log('config', config)
+// }
 
-let httpServer, httpsServer
+let httpServer
 
-let httpsOptions = {
+const httpsOptions = {
   key: fs.readFileSync(config.https.key),
   cert: fs.readFileSync(config.https.cert)
 }
@@ -43,7 +43,7 @@ if (config.https.only) {
 } else {
   httpServer = http.createServer(app)
 }
-httpsServer = https.createServer(httpsOptions, app)
+const httpsServer = https.createServer(httpsOptions, app)
 
 app.use(Fingerprint({
   parameters: [

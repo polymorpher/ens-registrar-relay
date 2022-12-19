@@ -26,7 +26,6 @@ router.get('/health', async (req, res) => {
 router.post('/check-domain', limiter(), async (req, res) => {
   const { sld } = req.body
   const ip = requestIp.getClientIp(req)
-  console.log(ip)
   if (!sld) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'missing fields', sld })
   }

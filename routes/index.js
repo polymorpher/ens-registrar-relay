@@ -45,7 +45,7 @@ const purchasePending = {}
 router.post('/purchase',
   limiter(),
   body('txHash').isLength({ min: 66, max: 66 }).trim().matches(/0x[a-fA-F0-9]+/),
-  body('domain').isLength({ min: 1, max: 20 }).trim().matches(/[a-zA-Z0-9-]+/),
+  body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-zA-Z0-9-]+\\.${appConfig.tld}$`),
   body('address').isLength({ min: 42, max: 42 }).trim().matches(/0x[a-fA-F0-9]+/),
   async (req, res) => {
     const errors = validationResult(req)

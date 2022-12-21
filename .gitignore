@@ -30,3 +30,5 @@ node_modules
 .idea/**/dynamic.xml
 .idea/**/uiDesigner.xml
 .idea/**/dbnavigator.xml
+
+/ssh.sh

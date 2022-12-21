@@ -76,7 +76,7 @@ router.post('/purchase',
       }
       const ip = undefined // requestIp.getClientIp(req)
       const now = Date.now()
-      const latestAllowedTime = parseInt(expires) - 365 * 3600 * 24 + 3600
+      const latestAllowedTime = parseInt(expires) * 1000 - 365 * 3600 * 24 + 3600
       if (now > latestAllowedTime) {
         return res.status(StatusCodes.BAD_REQUEST).json({
           error: 'registration was too old',

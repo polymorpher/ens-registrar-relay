@@ -2,7 +2,6 @@ require('dotenv').config()
 const DEBUG = process.env.BACKEND_DEBUG === 'true' || process.env.BACKEND_DEBUG === '1'
 const config = {
   debug: DEBUG,
-  dev: !(process.env.NODE_ENV === 'production'),
   provider: process.env.PROVIDER,
   registrarController: process.env.REGISTRAR_CONTROLLER,
   tld: process.env.TLD || 'country',
@@ -63,7 +62,6 @@ const config = {
     cert: DEBUG ? './certs/test.cert' : './certs/fullchain.pem'
   },
   corsOrigins: process.env.CORS,
-  secret: process.env.SECRET,
 
   datastore: {
     gceProjectId: process.env.GCP_PROJECT,

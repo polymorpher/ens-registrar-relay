@@ -76,7 +76,10 @@ const config = {
     certificateMapId: process.env.GCP_CERT_MAP || 'dot-country'
   },
   redis: {
-    url: process.env.REDIS_URL // redis[s]://[[username][:password]@][host][:port][/db-number]
+    url: process.env.REDIS_URL, // redis[s]://[[username][:password]@][host][:port][/db-number]
+  },
+  dns: {
+    ip: process.env.DEFAULT_A_RECORD_IP
   }
 }
 module.exports = config

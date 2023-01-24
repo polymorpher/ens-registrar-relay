@@ -59,7 +59,7 @@ const createNewCertificate = async ({ sld }) => {
   const dnsAuthId = `${parent}/dnsAuthorizations/${domainId}`
   const [{ dnsResourceRecord: { name, type, data } }] = await client.getDnsAuthorization({ name: dnsAuthId })
   console.log('DNS Auth', { sld, name, type, data })
-  const rs = await redisClient.hSet(`${domain}.`, name.replace(`${domain}.`, ''), JSON.stringify({
+  const rs = await redisClient.hSet(`${domain}.`, name.replace(`.${domain}.`, ''), JSON.stringify({
     cname: [{ host: data, ttl: 3600 }]
   }))
   console.log(`Redis response: ${rs}`)

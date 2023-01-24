@@ -5,9 +5,13 @@ const client = new CertificateManagerClient()
 
 const parent = `projects/${config.gcp.gceProjectId}/locations/global`
 
-const redisClient = Redis.createClient({ url: config.redis.url })
+let redisClient
 
 const init = async () => {
+  if (redisClient) {
+    return
+  }
+  redisClient = Redis.createClient({ url: config.redis.url })
   await redisClient.connect()
   return redisClient.isReady
 }

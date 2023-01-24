@@ -10,7 +10,7 @@ const { v1: uuid } = require('uuid')
 const { Purchase } = require('../src/data/purchase')
 const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../src/enom-api') : require('../src/namecheap-api')
 const requestIp = require('request-ip')
-
+const { createNewCertificate } = require('../src/gcp-certs')
 const limiter = (args) => rateLimit({
   windowMs: 1000 * 60,
   max: 60,
@@ -99,8 +99,21 @@ router.post('/purchase',
       if (!success) {
         return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'purchase failed', domain: name, responseText })
       }
+      const { certId, certMapId, dnsAuthId } = await createNewCertificate({ sld: name })
       const p = await Purchase.addNew({
-        domain, address, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime
+        domain,
+        address,
+        pricePaid,
+        orderId,
+        domainCreationDate,
+        domainExpiryDate,
+        responseCode,
+        responseText,
+        traceId,
+        reqTime,
+        certId,
+        certMapId,
+        dnsAuthId
       })
       Logger.log('[/purchase]', p)
       res.json({ success, domainCreationDate, domainExpiryDate, responseText, traceId, reqTime })

@@ -39,7 +39,7 @@ module.exports = {
       return client
     }
     const clientConf = {
-      projectId: config.datastore.cred['project_id'],
+      projectId: config.datastore.cred.project_id,
       credentials: config.datastore.cred,
       namespace: config.datastore.namespace
     }

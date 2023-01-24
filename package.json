@@ -8,6 +8,7 @@
     "debug": "BACKEND_DEBUG=true npm run start"
   },
   "dependencies": {
+    "@google-cloud/certificate-manager": "^0.6.2",
     "@google-cloud/datastore": "^6.6.2",
     "axios": "^0.21.1",
     "bn.js": "^5.2.0",
@@ -30,6 +31,7 @@
     "moment": "^2.29.1",
     "morgan": "^1.10.0",
     "node-cache": "^5.1.2",
+    "redis": "^4.5.1",
     "request-ip": "^3.3.0",
     "tar": ">=4.4.15",
     "ua-parser-js": "^1.0.2",

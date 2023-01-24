@@ -65,10 +65,18 @@ const config = {
 
   datastore: {
     gceProjectId: process.env.GCP_PROJECT,
-    cred: !process.env.GCP_CRED_PATH ? {} : require(process.env.GCP_CRED_PATH),
-    mock: !process.env.GCP_CRED_PATH,
+    cred: !process.env.GCP_DATASTORE_CRED_PATH ? {} : require(process.env.GCP_DATASTORE_CRED_PATH),
+    mock: !process.env.GCP_DATASTORE_CRED_PATH,
     mockPort: 9000,
     namespace: 'registrar-relay'
   },
+
+  gcp: {
+    gceProjectId: process.env.GCP_PROJECT,
+    certificateMapId: process.env.GCP_CERT_MAP || 'dot-country'
+  },
+  redis: {
+    url: process.env.REDIS_URL // redis[s]://[[username][:password]@][host][:port][/db-number]
+  }
 }
 module.exports = config

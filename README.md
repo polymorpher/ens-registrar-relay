@@ -186,4 +186,5 @@ You need to put a GCP service account key file (JSON format) at `credentials/gcp
 
 - **CORS**: the value to set in `Access-Control-Allow-Origin` response header. Use `*` to automatically adopt the value of request's origin
 - **GCP_PROJECT**: GCP project id, for persisting records of successful domain purchases
-- **GCP_CRED_PATH**: path of the GCP service account key file
+- **GCP_DATASTORE_CRED_PATH**: path of the GCP service account key file for datastore related operations
+- **GOOGLE_APPLICATION_CREDENTIALS**: path of the GCP service account key file for general GCP operations (such as certificate management)

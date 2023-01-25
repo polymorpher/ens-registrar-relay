@@ -79,7 +79,10 @@ const config = {
     url: process.env.REDIS_URL, // redis[s]://[[username][:password]@][host][:port][/db-number]
   },
   dns: {
-    ip: process.env.DEFAULT_A_RECORD_IP
+    ip: process.env.DEFAULT_A_RECORD_IP,
+    soa: process.env.DNS_SOA
+      ? JSON.parse(process.env.DNS_SOA)
+      : { ttl: 600, min_tll: 300, mname: 'domains.hiddenstate.country.', rname: 'ns1.hiddenstate.xyz.', serial: 1, refresh: 300, retry: 60, expire: 1800 }
   }
 }
 module.exports = config

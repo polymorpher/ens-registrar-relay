@@ -110,4 +110,25 @@ const createNewCertificate = async ({ sld }) => {
   }
 }
 
-module.exports = { createNewCertificate, init, redisClient }
+const deleteCertificate = async ({ sld }) => {
+  const domain = `${sld}.${config.tld}`
+  const domainId = domain.replaceAll('.', '-')
+  const certId = `${parent}/certificates/${domainId}`
+  const certMapId = `${parent}/certificateMaps/${config.gcp.certificateMapId}`
+  const mapEntryId = `${certMapId}/certificateMapEntries/${domainId}`
+  const mapEntryWcId = `${certMapId}/certificateMapEntries/wc-${domainId}`
+  const dnsAuthId = `${parent}/dnsAuthorizations/${domainId}`
+  const [op1] = await client.deleteCertificateMapEntry({ name: mapEntryId })
+  const r1 = await op1.promise()
+  console.log(`Deleted ${mapEntryId}`, r1)
+  const [op2] = await client.deleteCertificateMapEntry({ name: mapEntryWcId })
+  const r2 = await op2.promise()
+  console.log(`Deleted ${mapEntryWcId}`, r2)
+  const [op3] = await client.deleteCertificate({ name: certId })
+  const r3 = await op3.promise()
+  console.log(`Deleted ${certId}`, r3)
+  const [op4] = await client.deleteDnsAuthorization({ name: dnsAuthId })
+  const r4 = await op4.promise()
+  console.log(`Deleted ${dnsAuthId}`, r4)
+}
+module.exports = { createNewCertificate, init, redisClient, deleteCertificate }

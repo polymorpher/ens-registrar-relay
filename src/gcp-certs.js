@@ -64,9 +64,11 @@ const createNewCertificate = async ({ sld }) => {
   }))
   console.log(`Redis response CNAME: ${rs1}`)
   const rs2 = await redisClient.hSet(`${domain}.`, '@', JSON.stringify({
-    a: [{ ip: config.dns.ip, ttl: 300 }], soa: config.dns.soa
+    a: [{ ip: config.dns.ip, ttl: 300 }],
+    soa: config.dns.soa,
+    caa: [{ ttl: 300, flag: 0, tag: 'issue', value: 'letsencrypt.org' }, { ttl: 300, flag: 0, tag: 'issue', value: 'pki.goog' }]
   }))
-  console.log(`Redis response A: ${rs2}`)
+  console.log(`Redis response A/SOA/CAA: ${rs2}`)
   const [opCertCreate] = await client.createCertificate({
     parent,
     certificateId: domainId,

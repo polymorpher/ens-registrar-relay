@@ -29,8 +29,21 @@ const checkParams = (params, res) => {
   return true
 }
 
+const nameUtils = {
+  VALID_NAME: /[a-z0-9]+/,
+  SPECIAL_NAMES: ['s', '0', '1', 'li', 'ml', 'ba'],
+  isValidName: (name) => {
+    return nameUtils.VALID_NAME.test(name)
+  },
+  isReservedName: (name) => {
+    name = name.toLowerCase()
+    return nameUtils.isValidName(name) && name.length <= 2 && !nameUtils.SPECIAL_NAMES.includes(name)
+  }
+}
+
 module.exports = {
   checkParams,
   parseTx,
-  parseError
+  parseError,
+  nameUtils
 }

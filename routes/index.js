@@ -11,6 +11,7 @@ const { Purchase } = require('../src/data/purchase')
 const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../src/enom-api') : require('../src/namecheap-api')
 const requestIp = require('request-ip')
 const { createNewCertificate } = require('../src/gcp-certs')
+const { nameUtils } = require('./util')
 const limiter = (args) => rateLimit({
   windowMs: 1000 * 60,
   max: 60,
@@ -90,19 +91,37 @@ router.post('/purchase',
         })
       }
       purchasePending[domain] = rid
-      const { isAvailable, ...checkResponseArgs } = await domainApiProvider.checkIsDomainAvailable({ sld: name })
-      if (!isAvailable) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain not available', ...checkResponseArgs })
-      }
-
-      const { success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime } = await domainApiProvider.purchaseDomain({ sld: name, ip })
-      if (!success) {
-        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'purchase failed', domain: name, responseText })
+      let success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime
+      const reserved = nameUtils.isReservedName(name)
+      if (!reserved) {
+        const { isAvailable, ...checkResponseArgs } = await domainApiProvider.checkIsDomainAvailable({ sld: name })
+        if (!isAvailable) {
+          return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain not available', ...checkResponseArgs })
+        }
+        ({
+          success,
+          pricePaid,
+          orderId,
+          domainCreationDate,
+          domainExpiryDate,
+          responseCode,
+          responseText,
+          traceId,
+          reqTime
+        } = await domainApiProvider.purchaseDomain({ sld: name, ip }))
+        if (!success) {
+          return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            error: 'purchase failed',
+            domain: name,
+            responseText
+          })
+        }
       }
       const { certId, certMapId, dnsAuthId } = await createNewCertificate({ sld: name })
       const p = await Purchase.addNew({
         domain,
         address,
+        reserved,
         pricePaid,
         orderId,
         domainCreationDate,

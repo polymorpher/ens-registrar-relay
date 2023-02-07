@@ -73,7 +73,12 @@ const config = {
 
   gcp: {
     gceProjectId: process.env.GCP_PROJECT,
-    certificateMapId: process.env.GCP_CERT_MAP || 'dot-country'
+    certificateMapId: process.env.GCP_CERT_MAP || 'dot-country',
+    certStorage: {
+      projectId: process.env.CERT_STORAGE_GCP_PROJECT,
+      bucket: process.env.CERT_STORAGE_BUCKET,
+      cred: process.env.CERT_STORAGE_CRED,
+    }
   },
   redis: {
     url: process.env.REDIS_URL, // redis[s]://[[username][:password]@][host][:port][/db-number]

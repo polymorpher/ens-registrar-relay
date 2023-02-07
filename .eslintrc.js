@@ -1,20 +1,20 @@
 module.exports = {
   root: true,
-  'env': {
-    'node': true,
-    'es2020': true,
+  env: {
+    node: true,
+    es2020: true,
   },
-  'extends': [
+  extends: [
     'standard',
   ],
-  'globals': {
-    'artifacts': 'readonly',
-    'contract': 'readonly',
-    'assert': 'readonly',
-    'web3': 'readonly'
+  globals: {
+    artifacts: 'readonly',
+    contract: 'readonly',
+    assert: 'readonly',
+    web3: 'readonly'
   },
   // 'parser': '@babel/eslint-parser',
-  'rules': {
+  rules: {
     'no-await-in-loop': 0,
     'no-underscore-dangle': 0,
     'import/prefer-default-export': 0,
@@ -25,11 +25,11 @@ module.exports = {
     'new-cap': 0,
     'max-len': 0,
   },
-  'parserOptions': {
-    'requireConfigFile': false,
-    'ecmaVersion': 2020
+  parserOptions: {
+    requireConfigFile: false,
+    ecmaVersion: 2020
   },
-  'plugins': [
+  plugins: [
     '@babel',
   ],
 }

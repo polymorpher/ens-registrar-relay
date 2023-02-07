@@ -1,25 +1,8 @@
-const Redis = require('redis')
 const { CertificateManagerClient } = require('@google-cloud/certificate-manager').v1
 const config = require('../config')
+const { redisClient } = require('./redis')
 const client = new CertificateManagerClient()
-
 const parent = `projects/${config.gcp.gceProjectId}/locations/global`
-
-let redisClient
-
-const init = async () => {
-  if (redisClient) {
-    return
-  }
-  redisClient = Redis.createClient({ url: config.redis.url })
-  await redisClient.connect()
-  return redisClient.isReady
-}
-
-const test = async () => {
-  const testRes = await redisClient.keys('*')
-  console.log(testRes)
-}
 
 /*
   References:
@@ -46,6 +29,36 @@ const test = async () => {
   In naming resources, we also must follow naming convention:
   https://cloud.google.com/compute/docs/naming-resources
  */
+
+const createCertificateMapEntries = async ({ domain, certId }) => {
+  const domainId = domain.replaceAll('.', '-')
+  certId = certId || `${parent}/certificates/${domainId}`
+  const certMapId = `${parent}/certificateMaps/${config.gcp.certificateMapId}`
+  const [opCertMapEntryCreate] = await client.createCertificateMapEntry({
+    parent: certMapId,
+    certificateMapEntryId: domainId,
+    certificateMapEntry: {
+      hostname: domain,
+      certificates: [certId]
+    }
+  })
+  await opCertMapEntryCreate.promise()
+  console.log(`CertificateMapEntry created for ${domainId} under ${parent}`)
+  const [opWcCertMapEntryCreate] = await client.createCertificateMapEntry({
+    parent: certMapId,
+    certificateMapEntryId: `wc-${domainId}`,
+    certificateMapEntry: {
+      hostname: `*.${domain}`,
+      certificates: [certId]
+    }
+  })
+  await opWcCertMapEntryCreate.promise()
+  console.log(`CertificateMapEntry created for wc-${domainId} under ${parent}`)
+  return {
+    certId,
+    certMapId,
+  }
+}
 
 const createNewCertificate = async ({ sld }) => {
   if (!redisClient || !redisClient.isReady) {
@@ -80,29 +93,8 @@ const createNewCertificate = async ({ sld }) => {
     }
   })
   await opCertCreate.promise()
-  console.log('Certificate created')
-  const certId = `${parent}/certificates/${domainId}`
-  const certMapId = `${parent}/certificateMaps/${config.gcp.certificateMapId}`
-  const [opCertMapEntryCreate] = await client.createCertificateMapEntry({
-    parent: certMapId,
-    certificateMapEntryId: domainId,
-    certificateMapEntry: {
-      hostname: domain,
-      certificates: [certId]
-    }
-  })
-  await opCertMapEntryCreate.promise()
-  console.log(`CertificateMapEntry created for ${domainId} under ${parent}`)
-  const [opWcCertMapEntryCreate] = await client.createCertificateMapEntry({
-    parent: certMapId,
-    certificateMapEntryId: `wc-${domainId}`,
-    certificateMapEntry: {
-      hostname: `*.${domain}`,
-      certificates: [certId]
-    }
-  })
-  await opWcCertMapEntryCreate.promise()
-  console.log(`CertificateMapEntry created for wc-${domainId} under ${parent}`)
+  console.log('Managed-Certificate created')
+  const { certId, certMapId } = await createCertificateMapEntries({ domain })
   return {
     domain,
     domainId,
@@ -110,6 +102,24 @@ const createNewCertificate = async ({ sld }) => {
     certMapId,
     dnsAuthId,
   }
+}
+
+const createSelfManagedCertificate = async ({ domain, cert, key }) => {
+  const domainId = domain.replaceAll('.', '-')
+  const certId = `${parent}/certificates/${domainId}`
+  const [opCertCreate] = await client.createCertificate({
+    parent,
+    certificateId: domainId,
+    certificate: {
+      selfManaged: {
+        pemCertificate: cert.toString().replaceAll('\n\n', '\n'),
+        pemPrivateKey: key.toString(),
+      }
+    }
+  })
+  await opCertCreate.promise()
+  console.log(`GCP: Self-managed certificate created for ${domain}`)
+  return certId
 }
 
 const deleteCertificate = async ({ sld }) => {
@@ -133,4 +143,4 @@ const deleteCertificate = async ({ sld }) => {
   const r4 = await op4.promise()
   console.log(`Deleted ${dnsAuthId}`, r4)
 }
-module.exports = { createNewCertificate, init, redisClient, deleteCertificate }
+module.exports = { createNewCertificate, createCertificateMapEntries, createSelfManagedCertificate, deleteCertificate }

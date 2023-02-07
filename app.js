@@ -13,22 +13,13 @@ const https = require('https')
 const http = require('http')
 const env = process.env.NODE_ENV || 'development'
 const fs = require('fs')
-const { init: initGCPCert } = require('./src/gcp-certs')
+
 Error.stackTraceLimit = 100
 app.locals.ENV = env
 app.locals.ENV_DEVELOPMENT = env === 'development'
 
 app.set('trust proxy', true)
 
-// if (config.debug) {
-//   console.log('config', config)
-// }
-initGCPCert().then(() => {
-  console.log('Initialized GCP certificate manager or Redis')
-}).catch(() => {
-  console.log('Can\'t init GCP certificate manager or Redis')
-  process.exit(1)
-})
 let httpServer
 
 const httpsOptions = {

@@ -118,23 +118,24 @@ router.post('/purchase',
         }
       }
       const { certId, certMapId, dnsAuthId } = await createNewCertificate({ sld: name })
-      const p = await Purchase.addNew({
-        domain,
-        address,
-        reserved,
-        pricePaid,
-        orderId,
-        domainCreationDate,
-        domainExpiryDate,
-        responseCode,
-        responseText,
-        traceId,
-        reqTime,
-        certId,
-        certMapId,
-        dnsAuthId
-      })
-      Logger.log('[/purchase]', p)
+      //
+      // const p = await Purchase.addNew({
+      //   domain,
+      //   address,
+      //   reserved,
+      //   pricePaid,
+      //   orderId,
+      //   domainCreationDate,
+      //   domainExpiryDate,
+      //   responseCode,
+      //   responseText,
+      //   traceId,
+      //   reqTime,
+      //   certId,
+      //   certMapId,
+      //   dnsAuthId
+      // })
+      // Logger.log('[/purchase]', p)
       res.json({ success, domainCreationDate, domainExpiryDate, responseText, traceId, reqTime })
     } catch (ex) {
       console.error(ex)

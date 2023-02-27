@@ -1,4 +1,5 @@
 const acme = require('acme-client')
+const axios = require('axios')
 const config = require('../config')
 const { Storage } = require('@google-cloud/storage')
 const { redisClient } = require('./redis')
@@ -10,6 +11,8 @@ const storage = new Storage({
 })
 
 const bucket = storage.bucket(config.gcp.certStorage.bucket)
+
+const dnsApiBase = axios.create({ baseURL: config.dns.serverApi, timeout: 5000 })
 
 const uploadFile = async (path, content) => {
   return new Promise((resolve, reject) => {
@@ -116,7 +119,12 @@ async function createNewCertificate ({ sld, staging = false }) {
   }))
   console.log(`Redis response A/SOA/CAA: ${rs}`)
   // TODO: ping coredns server to load the zone, since it won't reload zones until ttl and this zone might be new
-
+  try {
+    const { data: { loaded, success } } = await dnsApiBase.get('/reload', { params: { zone: `${domain}.` } })
+    console.log('CoreDNS-Redis server response:', { loaded, success })
+  } catch (ex) {
+    console.error(`Cannot reload CoreDNS Redis for zone [${domain}.]`, ex?.response?.code, ex?.response?.data)
+  }
   // use dns-01 and DNSChallengeFunctions if have wildcards in altNames
   const { mutex, ...funcs } = DNSChallenger()
   const cert = await client.auto({

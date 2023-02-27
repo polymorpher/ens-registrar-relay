@@ -10,7 +10,8 @@ const { v1: uuid } = require('uuid')
 const { Purchase } = require('../src/data/purchase')
 const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../src/enom-api') : require('../src/namecheap-api')
 const requestIp = require('request-ip')
-const { createNewCertificate } = require('../src/gcp-certs')
+// const { createNewCertificate } = require('../src/gcp-certs')
+const { createNewCertificate } = require('../src/letsencrypt-certs')
 const { nameUtils } = require('./util')
 const limiter = (args) => rateLimit({
   windowMs: 1000 * 60,

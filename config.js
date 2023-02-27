@@ -84,6 +84,7 @@ const config = {
     url: process.env.REDIS_URL, // redis[s]://[[username][:password]@][host][:port][/db-number]
   },
   dns: {
+    serverApi: process.env.DNS_SERVER_API_ROOT,
     ip: process.env.DEFAULT_A_RECORD_IP,
     soa: process.env.DNS_SOA
       ? JSON.parse(process.env.DNS_SOA)

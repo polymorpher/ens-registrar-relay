@@ -95,9 +95,9 @@ const parseNameRegistrationData = (data) => {
 }
 
 const parseNameRegistrationLog = (log) => {
-  console.log('log', JSON.stringify(log))
+  // console.log('log', JSON.stringify(log))
   const regTopic = log?.topics?.find(e => e === TOPIC_NAME_REGISTRATION)
-  console.log('regTopic', JSON.stringify(regTopic))
+  // console.log('regTopic', JSON.stringify(regTopic))
   const owner = log?.topics?.[2]
   if (!regTopic || !owner) {
     return null
@@ -111,7 +111,7 @@ const parseNameRegistrationLog = (log) => {
 const getDomainRegistrationEvent = async (txHash) => {
   // const c = new web3.eth.Contract(AbiRegistrarController, config.registrarController)
   const txr = await web3.eth.getTransactionReceipt(txHash)
-  console.log('txr', JSON.stringify(txr))
+  // console.log('txr', JSON.stringify(txr))
   const filteredLogs = txr?.logs.filter(e => e?.address?.toLowerCase() === config.registrarController.toLowerCase())
   if (!filteredLogs?.length > 0) {
     return null

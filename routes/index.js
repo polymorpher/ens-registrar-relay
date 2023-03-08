@@ -51,27 +51,30 @@ const checkEvent = async ({ txHash, domain, address, res }) => {
   }
   const { name, owner, expires } = event
   if (owner.toLowerCase() !== address.toLowerCase()) {
-    return res.status(StatusCodes.BAD_REQUEST).json({
+    res.status(StatusCodes.BAD_REQUEST).json({
       error: 'registration event owner mismatch',
       eventAddress: owner,
       providedAddress: address
     })
+    return
   }
   if (`${name}.${appConfig.tld}` !== domain) {
-    return res.status(StatusCodes.BAD_REQUEST).json({
+    res.status(StatusCodes.BAD_REQUEST).json({
       error: 'registration event domain mismatch',
       eventDomain: `${name}.${appConfig.tld}`,
       providedDomain: domain
     })
+    return
   }
   const now = Date.now()
   const latestAllowedTime = parseInt(expires) * 1000
   if (now > latestAllowedTime) {
-    return res.status(StatusCodes.BAD_REQUEST).json({
+    res.status(StatusCodes.BAD_REQUEST).json({
       error: 'registration was too old',
       latestAllowedTime,
       now
     })
+    return
   }
   return name
 }
@@ -91,7 +94,7 @@ router.post('/cert',
     if (!name) {
       return
     }
-    const cr = getCertificate({ sld: name })
+    const cr = await getCertificate({ sld: name })
     if (cr) {
       return res.json({ error: 'certificate already exists', sld: name })
     }

@@ -87,7 +87,7 @@ router.post('/cert',
     }
     const { txHash, domain, address } = req.body
     console.log('[/cert]', { txHash, domain, address })
-    const name = checkEvent({ txHash, domain, address, res })
+    const name = await checkEvent({ txHash, domain, address, res })
     if (!name) {
       return
     }
@@ -119,7 +119,7 @@ router.post('/purchase',
     console.log('[/purchase]', { txHash, domain, address, fast })
     const rid = uuid()
     try {
-      const name = checkEvent({ txHash, domain, address, res })
+      const name = await checkEvent({ txHash, domain, address, res })
       if (!name) {
         return
       }

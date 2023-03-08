@@ -34,7 +34,6 @@ const checkTldPrice = async ({ ip = appConfig.namecheap.defaultIp, priceType = '
   })
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' })
   const parsed = parser.parse(data).ApiResponse
-  console.log(`[checkTldPrice][${priceType}]`, JSON.stringify(parsed))
   const options = parsed?.CommandResponse?.UserGetPricingResult?.ProductType?.ProductCategory?.Product?.Price || []
   const {
     '@_Price': basePrice,
@@ -42,6 +41,7 @@ const checkTldPrice = async ({ ip = appConfig.namecheap.defaultIp, priceType = '
     '@_RegularPrice': regularPrice,
   } = options?.[0] || {}
   const price = (parseFloat(basePrice) + parseFloat(additionalCost)) || 0.0
+  console.log(`[namecheap][price][${priceType}]`, { price, basePrice, additionalCost, regularPrice })
   const ret = {
     price,
     basePrice: parseFloat(basePrice || '0.0'),
@@ -65,7 +65,6 @@ const checkIsDomainAvailable = async ({ sld, ip = appConfig.namecheap.defaultIp 
   const error = parsed?.Errors?.Error?.['#text']
   const responseCode = parseInt(parsed?.Errors?.Error?.['@_Number'] || '0')
   const result = parsed?.CommandResponse?.DomainCheckResult || {}
-  console.log('[checkIsDomainAvailable]', sld, JSON.stringify(parsed))
   const {
     '@_Available': responseAvailable,
     '@_Description': responseDesc,
@@ -85,6 +84,7 @@ const checkIsDomainAvailable = async ({ sld, ip = appConfig.namecheap.defaultIp 
   const { price: regPrice } = await checkTldPrice({ ip })
   const { price: renewPrice } = await checkTldPrice({ ip, priceType: 'RENEW' })
   const { price: transferPrice } = await checkTldPrice({ ip, priceType: 'TRANSFER' })
+  console.log('[namecheap][check]', sld, { isAvailable, isReserved, isRegistered, regPrice })
   return { isAvailable, isReserved, isRegistered, regPrice, renewPrice, transferPrice, responseText, responseCode }
 }
 
@@ -113,8 +113,6 @@ const purchaseDomain = async ({ sld, ip = appConfig.namecheap.defaultIp }) => {
   const error = parsed?.Errors?.Error?.['#text']
   const responseCode = parseInt(parsed?.Errors?.Error?.['@_Number'] || '0')
   const result = parsed?.CommandResponse?.DomainCreateResult
-
-  console.log('[purchaseDomain]', sld, JSON.stringify(parsed))
   const {
     '@_Registered': registered,
     '@_OrderID': orderId,
@@ -123,6 +121,7 @@ const purchaseDomain = async ({ sld, ip = appConfig.namecheap.defaultIp }) => {
   } = result || {}
   const pricePaid = parseFloat(chargedAmount || '0')
   const success = registered === 'true'
+  console.log('[namecheap][purchase]', sld, { success, pricePaid, orderId })
   return { success, pricePaid, orderId, responseCode, responseText: error, traceId }
 }
 

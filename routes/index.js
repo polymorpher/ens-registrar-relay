@@ -9,9 +9,10 @@ const { getDomainRegistrationEvent } = require('../src/w3utils')
 const { v1: uuid } = require('uuid')
 const { Purchase } = require('../src/data/purchase')
 const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../src/enom-api') : require('../src/namecheap-api')
-const requestIp = require('request-ip')
+// const requestIp = require('request-ip')
 // const { createNewCertificate } = require('../src/gcp-certs')
 const { createNewCertificate } = require('../src/letsencrypt-certs')
+const { getCertificate } = require('../src/gcp-certs')
 const { nameUtils } = require('./util')
 const limiter = (args) => rateLimit({
   windowMs: 1000 * 60,
@@ -27,6 +28,7 @@ router.get('/health', async (req, res) => {
 
 router.post('/check-domain', limiter(), async (req, res) => {
   const { sld } = req.body
+  console.log('[/check-domain]', { sld })
   const ip = undefined // requestIp.getClientIp(req)
   if (!sld) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'missing fields', sld })
@@ -42,6 +44,65 @@ router.post('/check-domain', limiter(), async (req, res) => {
   }
 })
 
+const checkEvent = async ({ txHash, domain, address, res }) => {
+  const event = await getDomainRegistrationEvent(txHash)
+  if (!event) {
+    return res.status(StatusCodes.NOT_FOUND).json({ error: 'did not find registration event in txHash', txHash })
+  }
+  const { name, owner, expires } = event
+  if (owner.toLowerCase() !== address.toLowerCase()) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      error: 'registration event owner mismatch',
+      eventAddress: owner,
+      providedAddress: address
+    })
+  }
+  if (`${name}.${appConfig.tld}` !== domain) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      error: 'registration event domain mismatch',
+      eventDomain: `${name}.${appConfig.tld}`,
+      providedDomain: domain
+    })
+  }
+  const now = Date.now()
+  const latestAllowedTime = parseInt(expires) * 1000
+  if (now > latestAllowedTime) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      error: 'registration was too old',
+      latestAllowedTime,
+      now
+    })
+  }
+  return name
+}
+router.post('/cert',
+  limiter(),
+  body('txHash').isLength({ min: 66, max: 66 }).trim().matches(/0x[a-fA-F0-9]+/),
+  body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
+  body('address').isLength({ min: 42, max: 42 }).trim().matches(/0x[a-fA-F0-9]+/),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() })
+    }
+    const { txHash, domain, address } = req.body
+    console.log('[/cert]', { txHash, domain, address })
+    const name = checkEvent({ txHash, domain, address, res })
+    if (!name) {
+      return
+    }
+    const cr = getCertificate({ sld: name })
+    if (cr) {
+      return res.json({ error: 'certificate already exists', sld: name })
+    }
+    try {
+      await createNewCertificate({ sld: name })
+      res.json({ success: true, sld: name })
+    } catch (ex) {
+      console.error('[/cert][error]', ex)
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'certificate generation failed, please try again later' })
+    }
+  })
 // very primitive locking mechanism
 const purchasePending = {}
 router.post('/purchase',
@@ -54,38 +115,15 @@ router.post('/purchase',
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() })
     }
-    const { txHash, domain, address } = req.body
+    const { txHash, domain, address, fast } = req.body
+    console.log('[/purchase]', { txHash, domain, address, fast })
     const rid = uuid()
     try {
-      const event = await getDomainRegistrationEvent(txHash)
-      if (!event) {
-        return res.status(StatusCodes.NOT_FOUND).json({ error: 'did not find registration event in txHash', txHash })
-      }
-      const { name, owner, expires } = event
-      if (owner.toLowerCase() !== address.toLowerCase()) {
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          error: 'registration event owner mismatch',
-          eventAddress: owner,
-          providedAddress: address
-        })
-      }
-      if (`${name}.${appConfig.tld}` !== domain) {
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          error: 'registration event domain mismatch',
-          eventDomain: `${name}.${appConfig.tld}`,
-          providedDomain: domain
-        })
+      const name = checkEvent({ txHash, domain, address, res })
+      if (!name) {
+        return
       }
       const ip = undefined // requestIp.getClientIp(req)
-      const now = Date.now()
-      const latestAllowedTime = parseInt(expires) * 1000 - 365 * 3600 * 24 + 3600
-      if (now > latestAllowedTime) {
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          error: 'registration was too old',
-          latestAllowedTime,
-          now
-        })
-      }
       if (purchasePending[domain]) {
         return res.status(StatusCodes.BAD_REQUEST).json({
           error: 'another purchase is pending'
@@ -118,7 +156,10 @@ router.post('/purchase',
           })
         }
       }
-      const { certId, certMapId, dnsAuthId } = await createNewCertificate({ sld: name })
+      let certId, certMapId, dnsAuthId
+      if (!fast) {
+        ({ certId, certMapId, dnsAuthId } = await createNewCertificate({ sld: name }))
+      }
       const p = await Purchase.addNew({
         domain,
         address,

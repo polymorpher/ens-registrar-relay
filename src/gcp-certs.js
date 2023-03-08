@@ -143,4 +143,18 @@ const deleteCertificate = async ({ sld }) => {
   const r4 = await op4.promise()
   console.log(`Deleted ${dnsAuthId}`, r4)
 }
-module.exports = { createNewCertificate, createCertificateMapEntries, createSelfManagedCertificate, deleteCertificate }
+
+const getCertificate = async ({ sld }) => {
+  const domain = `${sld}.${config.tld}`
+  const domainId = domain.replaceAll('.', '-')
+  const certId = `${parent}/certificates/${domainId}`
+  try {
+    const [cr] = await client.getCertificate({ name: certId })
+    return cr
+  } catch (ex) {
+    console.error('[getCertificate]', sld, ex)
+    return null
+  }
+}
+
+module.exports = { createNewCertificate, createCertificateMapEntries, createSelfManagedCertificate, deleteCertificate, getCertificate }

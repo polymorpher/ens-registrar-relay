@@ -30,7 +30,6 @@ const checkIsDomainAvailable = async ({ sld }) => {
   })
   const parser = new XMLParser()
   const parsed = parser.parse(data)['interface-response']
-  console.log('[check-domain]', sld, JSON.stringify(parsed))
   const {
     Domains: {
       Domain: {
@@ -53,6 +52,7 @@ const checkIsDomainAvailable = async ({ sld }) => {
     isPlatinum.toLowerCase() !== 'false' ||
     isEap.toLowerCase() !== 'false')
   const isAvailable = !isRegistered && !isReserved && regPrice < 50
+  console.log('[enom][check-domain]', sld, { isAvailable, isReserved, isRegistered, regPrice })
   return { isAvailable, isReserved, isRegistered, regPrice, renewPrice, transferPrice, restorePrice, responseText }
 }
 
@@ -78,7 +78,7 @@ const purchaseDomain = async ({ sld }) => {
   })
   const parser = new XMLParser()
   const parsed = parser.parse(data)['interface-response']
-  console.log('[purchase-domain]', sld, JSON.stringify(parsed))
+
   const {
     TotalCharged: pricePaid,
     OrderID: orderId,
@@ -92,6 +92,7 @@ const purchaseDomain = async ({ sld }) => {
     RequestDateTime: reqTime,
   } = parsed
   const success = responseCode === 200
+  console.log('[enom][purchase-domain]', sld, { success, pricePaid })
   return { success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime }
 }
 

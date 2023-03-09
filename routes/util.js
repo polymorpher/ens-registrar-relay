@@ -36,7 +36,10 @@ const nameUtils = {
     return nameUtils.VALID_NAME.test(name)
   },
   isReservedName: (name) => {
-    name = name.toLowerCase()
+    name = name?.toLowerCase()
+    if (!name) {
+      return false
+    }
     return nameUtils.isValidName(name) && name.length <= 2 && !nameUtils.SPECIAL_NAMES.includes(name)
   }
 }

@@ -47,7 +47,8 @@ router.post('/check-domain', limiter(), async (req, res) => {
 const checkEvent = async ({ txHash, domain, address, res }) => {
   const event = await getDomainRegistrationEvent(txHash)
   if (!event) {
-    return res.status(StatusCodes.NOT_FOUND).json({ error: 'did not find registration event in txHash', txHash })
+    res.status(StatusCodes.NOT_FOUND).json({ error: 'did not find registration event in txHash', txHash })
+    return
   }
   const { name, owner, expires } = event
   if (owner.toLowerCase() !== address.toLowerCase()) {

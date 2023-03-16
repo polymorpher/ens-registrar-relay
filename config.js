@@ -7,6 +7,7 @@ const config = {
   tld: process.env.TLD || 'country',
   allowAdminOverride: process.env.ALLOW_ADMIN_OVERRIDE === 'true',
   registrarProvider: process.env.REGISTRAR_PROVIDER,
+  acmeKeyFile: process.env.ACME_KEY_FILE,
   enom: {
     test: process.env.ENOM_LIVE_RESELLER ? (process.env.ENOM_LIVE_RESELLER !== 'true') : DEBUG,
     uid: process.env.ENOM_UID,

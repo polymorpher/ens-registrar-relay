@@ -241,7 +241,11 @@ router.post('/gen',
       const { metadata } = data || {}
       res.json({ generated: true, metadata })
     } catch (ex) {
-      console.error(ex)
+      if (ex.response) {
+        console.error(ex.response.code, ex.response.data)
+      } else {
+        console.error(ex)
+      }
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })
     }
   }

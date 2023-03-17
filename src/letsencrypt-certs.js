@@ -1,5 +1,6 @@
 const acme = require('acme-client')
 const axios = require('axios')
+const fs = require('fs/promises')
 const config = require('../config')
 const { Storage } = require('@google-cloud/storage')
 const { redisClient } = require('./redis')
@@ -103,7 +104,13 @@ const DNSChallenger = () => {
 }
 
 async function createNewCertificate ({ sld, staging = false }) {
-  const accountKey = await acme.crypto.createPrivateKey()
+  let accountKey
+  if (config.acmeKeyFile) {
+    const key = await fs.readFile(config.acmeKeyFile, { encoding: 'utf-8' })
+    accountKey = Buffer.from(key)
+  } else {
+    accountKey = await acme.crypto.createPrivateKey()
+  }
   const client = new acme.Client({ accountKey, directoryUrl: staging ? acme.directory.letsencrypt.staging : acme.directory.letsencrypt.production })
   const domain = `${sld}.${config.tld}`
   const [key, csr] = await acme.crypto.createCsr({

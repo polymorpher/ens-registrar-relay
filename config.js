@@ -4,9 +4,11 @@ const config = {
   debug: DEBUG,
   provider: process.env.PROVIDER,
   registrarController: process.env.REGISTRAR_CONTROLLER,
+  baseRegistrar: process.env.BASE_REGISTRAR,
   tld: process.env.TLD || 'country',
   allowAdminOverride: process.env.ALLOW_ADMIN_OVERRIDE === 'true',
   registrarProvider: process.env.REGISTRAR_PROVIDER,
+  acmeKeyFile: process.env.ACME_KEY_FILE,
   enom: {
     test: process.env.ENOM_LIVE_RESELLER ? (process.env.ENOM_LIVE_RESELLER !== 'true') : DEBUG,
     uid: process.env.ENOM_UID,
@@ -89,6 +91,10 @@ const config = {
     soa: process.env.DNS_SOA
       ? JSON.parse(process.env.DNS_SOA)
       : { ttl: 600, min_tll: 300, mname: 'domains.hiddenstate.country.', rname: 'ns1.hiddenstate.xyz.', serial: 1, refresh: 300, retry: 60, expire: 1800 }
+  },
+  generator: {
+    apiBase: process.env.GENERATOR_API_BASE, // http://ip:8001/
+    metadataBucket: process.env.GOOGLE_CLOUD_STORAGE_BUCKET_NAME_METADATA
   }
 }
 module.exports = config

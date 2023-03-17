@@ -152,7 +152,7 @@ const getCertificate = async ({ sld }) => {
     const [cr] = await client.getCertificate({ name: certId })
     return cr
   } catch (ex) {
-    console.error('[getCertificate]', sld, ex)
+    console.error('[getCertificate]', sld, ex?.code, ex?.details)
     return null
   }
 }

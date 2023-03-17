@@ -5,7 +5,7 @@ const { Logger } = require('../logger')
 const { body, validationResult } = require('express-validator')
 const rateLimit = require('express-rate-limit')
 const appConfig = require('../config')
-const { getDomainRegistrationEvent } = require('../src/w3utils')
+const { getDomainRegistrationEvent, nameExpires, utils: w3utils } = require('../src/w3utils')
 const { v1: uuid } = require('uuid')
 const { Purchase } = require('../src/data/purchase')
 const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../src/enom-api') : require('../src/namecheap-api')
@@ -14,6 +14,7 @@ const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../s
 const { createNewCertificate } = require('../src/letsencrypt-certs')
 const { getCertificate } = require('../src/gcp-certs')
 const { nameUtils } = require('./util')
+const axios = require('axios')
 const limiter = (args) => rateLimit({
   windowMs: 1000 * 60,
   max: 60,
@@ -48,7 +49,7 @@ const checkEvent = async ({ txHash, domain, address, res }) => {
   const event = await getDomainRegistrationEvent(txHash)
   if (!event) {
     res.status(StatusCodes.NOT_FOUND).json({ error: 'did not find registration event in txHash', txHash })
-    return
+    return {}
   }
   const { name, owner, expires } = event
   if (owner.toLowerCase() !== address.toLowerCase()) {
@@ -57,7 +58,7 @@ const checkEvent = async ({ txHash, domain, address, res }) => {
       eventAddress: owner,
       providedAddress: address
     })
-    return
+    return {}
   }
   if (`${name}.${appConfig.tld}` !== domain) {
     res.status(StatusCodes.BAD_REQUEST).json({
@@ -65,7 +66,7 @@ const checkEvent = async ({ txHash, domain, address, res }) => {
       eventDomain: `${name}.${appConfig.tld}`,
       providedDomain: domain
     })
-    return
+    return {}
   }
   const now = Date.now()
   const latestAllowedTime = parseInt(expires) * 1000
@@ -75,25 +76,24 @@ const checkEvent = async ({ txHash, domain, address, res }) => {
       latestAllowedTime,
       now
     })
-    return
+    return {}
   }
-  return name
+  return { name, expires }
 }
 router.post('/cert',
   limiter(),
-  body('txHash').isLength({ min: 66, max: 66 }).trim().matches(/0x[a-fA-F0-9]+/),
   body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
-  body('address').isLength({ min: 42, max: 42 }).trim().matches(/0x[a-fA-F0-9]+/),
   async (req, res) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() })
+      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
     }
     const { txHash, domain, address } = req.body
     console.log('[/cert]', { txHash, domain, address })
-    const name = await checkEvent({ txHash, domain, address, res })
-    if (!name) {
-      return
+    const name = domain.split('.country')[0]
+    const expiry = await nameExpires(name)
+    if (expiry <= Date.now()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain expired', domain })
     }
     const cr = await getCertificate({ sld: name })
     if (cr) {
@@ -117,13 +117,13 @@ router.post('/purchase',
   async (req, res) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() })
+      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
     }
     const { txHash, domain, address, fast } = req.body
     console.log('[/purchase]', { txHash, domain, address, fast })
     const rid = uuid()
     try {
-      const name = await checkEvent({ txHash, domain, address, res })
+      const { name } = await checkEvent({ txHash, domain, address, res })
       if (!name) {
         return
       }
@@ -206,4 +206,45 @@ if (appConfig.allowAdminOverride) {
     res.json({ success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime })
   })
 }
+
+router.post('/gen',
+  limiter(),
+  body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
+    }
+    const { domain } = req.body
+    console.log('[/gen]', { domain })
+    const name = domain.split('.country')[0]
+    const expiry = await nameExpires(name)
+    if (expiry <= Date.now()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain expired', domain })
+    }
+    const id = w3utils.keccak256(name, true)
+    const path = `https://storage.googleapis.com/${appConfig.generator.metadataBucket}/${id}`
+    try {
+      await axios.get(path)
+      return res.json({ generated: false, metadata: path })
+    } catch (ex) {
+      console.log(`[/gen] Did not find ${name}; generating...`)
+    }
+    try {
+      const { data } = await axios.get(appConfig.generator.apiBase + '/generate-nft-data', {
+        params: {
+          domain,
+          registrationTs: Date.now(),
+          expirationTs: expiry
+        }
+      })
+      const { metadata } = data || {}
+      res.json({ generated: true, metadata })
+    } catch (ex) {
+      console.error(ex)
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })
+    }
+  }
+)
+
 module.exports = router

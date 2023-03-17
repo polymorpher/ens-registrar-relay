@@ -1,12 +1,12 @@
 const Web3 = require('web3')
 const abi = require('web3-eth-abi')
-// const crypto = require('crypto')
 const createKeccakHash = require('keccak')
+const uts46 = require('idna-uts46')
 const config = require('../config')
 const web3 = new Web3(config.provider)
-// const AbiRegistrarController = require('../abi/RegistrarController.json')
-// const Contract = require('web3-eth-contract')
-// Contract.setProvider(web3.currentProvider)
+const TLDBaseRegistrarImplementation = require('../abi/TLDBaseRegistrarImplementation.json')
+const Contract = require('web3-eth-contract')
+Contract.setProvider(web3.currentProvider)
 
 const utils = {
   hexView: (bytes) => {
@@ -71,6 +71,27 @@ const utils = {
       return null
     }
   },
+
+  normalizeDomain: e => {
+    return uts46.toAscii(e, { useStd3ASCII: true })
+  },
+
+  namehash: (name) => {
+    name = utils.normalizeDomain(name)
+    const parts = name.split('.')
+    const empty = new Uint8Array(32)
+    if (!name) {
+      return empty
+    }
+    let hash = empty
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const joined = new Uint8Array(64)
+      joined.set(hash)
+      joined.set(utils.keccak(parts[i]), 32)
+      hash = utils.keccak(joined)
+    }
+    return hash
+  },
 }
 
 // event NameRegistered(
@@ -109,7 +130,7 @@ const parseNameRegistrationLog = (log) => {
 }
 
 const getDomainRegistrationEvent = async (txHash) => {
-  // const c = new web3.eth.Contract(AbiRegistrarController, config.registrarController)
+  // const c = new Contract(AbiRegistrarController, config.registrarController)
   const txr = await web3.eth.getTransactionReceipt(txHash)
   // console.log('txr', JSON.stringify(txr))
   const filteredLogs = txr?.logs.filter(e => e?.address?.toLowerCase() === config.registrarController.toLowerCase())
@@ -120,4 +141,12 @@ const getDomainRegistrationEvent = async (txHash) => {
   return regLogs?.[0]
 }
 
-module.exports = { utils, getDomainRegistrationEvent, parseNameRegistrationLog, parseNameRegistrationData, TOPIC_NAME_REGISTRATION }
+const nameExpires = async (sld) => {
+  const c = new Contract(TLDBaseRegistrarImplementation, config.baseRegistrar)
+  const id = utils.keccak256(sld, true)
+  console.log(id, config.baseRegistrar)
+  const expires = await c.methods.nameExpires(utils.keccak256(sld, true)).call()
+  return Number(expires) * 1000
+}
+
+module.exports = { utils, getDomainRegistrationEvent, parseNameRegistrationLog, parseNameRegistrationData, TOPIC_NAME_REGISTRATION, nameExpires }

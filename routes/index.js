@@ -222,11 +222,21 @@ router.post('/gen',
     if (expiry <= Date.now()) {
       return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain expired', domain })
     }
-    const id = w3utils.keccak256(name, true)
-    const path = `https://storage.googleapis.com/${appConfig.generator.metadataBucket}/${id}`
+    const id = w3utils.keccak256(name)
+    const id2 = w3utils.hexView(w3utils.namehash(name))
+    const path721 = `https://storage.googleapis.com/${appConfig.generator.metadataBucket}/erc721/${id}`
+    const path1155 = `https://storage.googleapis.com/${appConfig.generator.metadataBucket}/erc1155/${id2}`
     try {
-      await axios.get(path)
-      return res.json({ generated: false, metadata: path })
+      await axios.get(path721)
+      await axios.get(path1155)
+      return res.json({
+        generated: false,
+        error: 'already exists',
+        metadata: {
+          erc721Metadata: path721,
+          erc1155Metadata: path1155,
+        }
+      })
     } catch (ex) {
       console.log(`[/gen] Did not find ${name}; generating...`)
     }

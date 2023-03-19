@@ -222,8 +222,8 @@ router.post('/gen',
     if (expiry <= Date.now()) {
       return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain expired', domain })
     }
-    const id = w3utils.keccak256(name)
-    const id2 = w3utils.hexView(w3utils.namehash(name))
+    const id = BigInt(w3utils.keccak256(name, true)).toString()
+    const id2 = BigInt(w3utils.hexString(w3utils.namehash(name))).toString()
     const path721 = `https://storage.googleapis.com/${appConfig.generator.metadataBucket}/erc721/${id}`
     const path1155 = `https://storage.googleapis.com/${appConfig.generator.metadataBucket}/erc1155/${id2}`
     try {

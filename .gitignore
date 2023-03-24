@@ -32,3 +32,5 @@ node_modules
 .idea/**/dbnavigator.xml
 
 /ssh.sh
+
+dump.csv

@@ -176,8 +176,8 @@ const GenericBuilder = (inKind) => {
     batchGet,
     batchAddEntities,
     batchDelete,
-    key
-
+    key,
+    kind
   }
 }
 

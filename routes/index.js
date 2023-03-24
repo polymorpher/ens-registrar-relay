@@ -227,6 +227,8 @@ router.post('/gen',
     const path721 = `https://storage.googleapis.com/${appConfig.generator.metadataBucket}/erc721/${id}`
     const path1155 = `https://storage.googleapis.com/${appConfig.generator.metadataBucket}/erc1155/${id2}`
     try {
+      console.log(`[/gen] Checking ${path721}`)
+      console.log(`[/gen] Checking ${path1155}`)
       await axios.get(path721)
       await axios.get(path1155)
       return res.json({

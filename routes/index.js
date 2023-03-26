@@ -195,11 +195,23 @@ router.post('/purchase',
 if (appConfig.allowAdminOverride) {
   router.post('/purchase-mock', async (req, res) => {
     const ip = undefined // requestIp.getClientIp(req)
-    const { domain } = req.body
+    const { domain, address } = req.body
     const name = domain.split('.')[0]
     const { success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime } =
       await domainApiProvider.purchaseDomain({ sld: name, ip })
-
+    const p = await Purchase.addNew({
+      domain,
+      address,
+      pricePaid,
+      orderId,
+      domainCreationDate,
+      domainExpiryDate,
+      responseCode,
+      responseText,
+      traceId,
+      reqTime
+    })
+    Logger.log('[/purchase]', p)
     if (!success) {
       return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'purchase failed', domain: name, responseText })
     }

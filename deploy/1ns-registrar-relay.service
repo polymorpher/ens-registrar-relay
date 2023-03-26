@@ -1,0 +1,14 @@
+[Unit]
+Description=1NS Registrar Relay
+After=network.target
+
+[Service]
+Environment=PORT=80 HTTPS_PORT=443
+Type=simple
+User=worker
+WorkingDirectory=/opt/ens-registrar-relay
+ExecStart=/usr/bin/node /opt/ens-registrar-relay/bin/run.js
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

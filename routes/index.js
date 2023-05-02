@@ -275,4 +275,73 @@ router.post('/gen',
   }
 )
 
+router.post('/renew-metadata',
+  limiter(),
+  body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
+    }
+    const { domain } = req.body
+    console.log('[/renew-metadata]', { domain })
+    const name = domain.split('.country')[0]
+    const expiry = await nameExpires(name)
+    if (expiry <= Date.now()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain expired', domain })
+    }
+    const id = BigInt(w3utils.keccak256(name, true)).toString()
+    const id2 = BigInt(w3utils.hexString(w3utils.namehash(domain))).toString()
+    const path721 = `https://storage.googleapis.com/${appConfig.generator.metadataBucket}/erc721/${id}`
+    const path1155 = `https://storage.googleapis.com/${appConfig.generator.metadataBucket}/erc1155/${id2}`
+    try {
+      console.log(`[/renew-metadata] Checking ${path721}`)
+      console.log(`[/renew-metadata] Checking ${path1155}`)
+      const { data: data1 } = await axios.get(path721)
+      const { data: data2 } = await axios.get(path1155)
+      const metadataExpiry1 = Number((data1.attributes || [])?.find(attr => attr.trait_type === 'Expiration Date')?.value || 0)
+      const metadataExpiry2 = Number((data2.attributes || [])?.find(attr => attr.trait_type === 'Expiration Date')?.value || 0)
+      if (metadataExpiry1 && metadataExpiry2 && metadataExpiry1 === metadataExpiry2 && metadataExpiry1 === expiry) {
+        return res.json({
+          renewed: false,
+          error: 'metadata already renewed',
+          metadata: {
+            erc721Metadata: path721,
+            erc1155Metadata: path1155,
+          }
+        })
+      }
+    } catch (ex) {
+      console.error('[/renew-metadata]', ex)
+      return res.status(StatusCodes.NOT_FOUND).json({
+        renewed: false,
+        error: 'cannot find metadata file or appropriate data',
+        metadata: {
+          erc721Metadata: path721,
+          erc1155Metadata: path1155,
+        }
+      })
+    }
+    const renewalTs = Date.now()
+    try {
+      const { data } = await axios.get(appConfig.generator.apiBase + '/renew', {
+        params: {
+          domain,
+          renewalTs,
+          expirationTs: expiry
+        }
+      })
+      const { metadata } = data || {}
+      res.json({ renewed: true, metadata, expiry })
+    } catch (ex) {
+      if (ex.response) {
+        console.error(ex.response.code, ex.response.data)
+      } else {
+        console.error(ex)
+      }
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })
+    }
+  }
+)
+
 module.exports = router

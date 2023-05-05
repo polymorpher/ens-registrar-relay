@@ -12,7 +12,7 @@ const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../s
 // const requestIp = require('request-ip')
 // const { createNewCertificate } = require('../src/gcp-certs')
 const { createNewCertificate } = require('../src/letsencrypt-certs')
-const { enableSubdomains } = require('../src/subdomains')
+const { enableSubdomains, getWildcardSubdomainRecord } = require('../src/subdomains')
 const { getCertificate } = require('../src/gcp-certs')
 const { nameUtils } = require('./util')
 const axios = require('axios')
@@ -360,6 +360,9 @@ router.post('/enable-subdomains',
       const subdomains = await getSubdomains(sld)
       if (subdomains.length === 0) {
         return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'no subdomain enabled' })
+      }
+      if (await getWildcardSubdomainRecord({ sld })) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ error: 'already enabled' })
       }
       await enableSubdomains({ sld })
       res.json({ success: true })

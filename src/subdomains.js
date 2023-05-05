@@ -8,4 +8,12 @@ const enableSubdomains = async ({ sld }) => {
   console.log(`-enableSubdomains ${sld}`, 'redis response: ', res)
 }
 
-module.exports = { enableSubdomains }
+const getWildcardSubdomainRecord = async ({ sld }) => {
+  const zone = `${sld}.${config.tld}.`
+  const key = '*'
+  const res = await redisClient.hGet(zone, key)
+  console.log(`-getWildcardSubdomainRecord ${sld}`, 'redis response: ', res)
+  return res
+}
+
+module.exports = { enableSubdomains, getWildcardSubdomainRecord }

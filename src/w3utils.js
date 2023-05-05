@@ -5,6 +5,7 @@ const uts46 = require('idna-uts46')
 const config = require('../config')
 const web3 = new Web3(config.provider)
 const TLDBaseRegistrarImplementation = require('../abi/TLDBaseRegistrarImplementation.json')
+const EWSAbi = require('../abi/EWS.json')
 const Contract = require('web3-eth-contract')
 Contract.setProvider(web3.currentProvider)
 
@@ -144,9 +145,16 @@ const getDomainRegistrationEvent = async (txHash) => {
 const nameExpires = async (sld) => {
   const c = new Contract(TLDBaseRegistrarImplementation, config.baseRegistrar)
   const id = utils.keccak256(sld, true)
-  console.log(id, config.baseRegistrar)
+  // console.log(id, config.baseRegistrar)
   const expires = await c.methods.nameExpires(utils.keccak256(sld, true)).call()
   return Number(expires) * 1000
 }
 
-module.exports = { utils, getDomainRegistrationEvent, parseNameRegistrationLog, parseNameRegistrationData, TOPIC_NAME_REGISTRATION, nameExpires }
+const getSubdomains = async (sld) => {
+  const c = new Contract(EWSAbi, config.ews)
+  const node = utils.keccak256(sld, true)
+  console.log(node, config.ews)
+  return c.methods.getSubdomains(node).call()
+}
+
+module.exports = { utils, getDomainRegistrationEvent, parseNameRegistrationLog, parseNameRegistrationData, TOPIC_NAME_REGISTRATION, nameExpires, getSubdomains }

@@ -5,6 +5,8 @@ const config = {
   provider: process.env.PROVIDER,
   registrarController: process.env.REGISTRAR_CONTROLLER,
   baseRegistrar: process.env.BASE_REGISTRAR,
+  ews: process.env.EWS,
+  ewsIp: process.env.EWS_IP,
   tld: process.env.TLD || 'country',
   allowAdminOverride: process.env.ALLOW_ADMIN_OVERRIDE === 'true',
   registrarProvider: process.env.REGISTRAR_PROVIDER,

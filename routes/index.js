@@ -5,13 +5,14 @@ const { Logger } = require('../logger')
 const { body, validationResult } = require('express-validator')
 const rateLimit = require('express-rate-limit')
 const appConfig = require('../config')
-const { getDomainRegistrationEvent, nameExpires, utils: w3utils } = require('../src/w3utils')
+const { getDomainRegistrationEvent, getSubdomains, nameExpires, utils: w3utils } = require('../src/w3utils')
 const { v1: uuid } = require('uuid')
 const { Purchase } = require('../src/data/purchase')
 const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../src/enom-api') : require('../src/namecheap-api')
 // const requestIp = require('request-ip')
 // const { createNewCertificate } = require('../src/gcp-certs')
 const { createNewCertificate } = require('../src/letsencrypt-certs')
+const { enableSubdomains } = require('../src/subdomains')
 const { getCertificate } = require('../src/gcp-certs')
 const { nameUtils } = require('./util')
 const axios = require('axios')
@@ -344,4 +345,31 @@ router.post('/renew-metadata',
   }
 )
 
+router.post('/enable-subdomains',
+  limiter(),
+  body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
+    }
+    const { domain } = req.body
+    console.log('[/enable-subdomains]', { domain })
+    const sld = domain.split('.country')[0]
+    try {
+      const subdomains = await getSubdomains(sld)
+      if (subdomains.length === 0) {
+        return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'no subdomain enabled' })
+      }
+      await enableSubdomains({ sld })
+      res.json({ success: true })
+    } catch (ex) {
+      if (ex.response) {
+        console.error(ex.response.code, ex.response.data)
+      } else {
+        console.error(ex)
+      }
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })
+    }
+  })
 module.exports = router

@@ -5,7 +5,10 @@ const config = require('../config')
 const { Storage } = require('@google-cloud/storage')
 const { redisClient } = require('./redis')
 const { Mutex } = require('async-mutex')
-const { createSelfManagedCertificate, createCertificateMapEntries } = require('./gcp-certs')
+const {
+  createSelfManagedCertificate, createCertificateMapEntry, createWcCertificateMapEntry, deleteCertificateMapEntry,
+  deleteWcCertificateMapEntry
+} = require('./gcp-certs')
 const storage = new Storage({
   projectId: config.gcp.certStorage.projectId,
   credentials: config.gcp.certStorage.cred,
@@ -36,26 +39,31 @@ const removeFile = async (path) => {
 }
 
 // eslint-disable-next-line no-unused-vars
-const HTTPChallengeFunctions = {
-  challengeCreateFn: async (authz, challenge, keyAuthorization) => {
-    console.log('Creating challenge...')
-    if (challenge.type !== 'http-01') {
-      throw new Error(`Cannot use challenge function for ${challenge.type}`)
+const HTTPChallengeFunctions = () => {
+  // dummy, not used
+  const m = new Mutex()
+  return {
+    mutex: m,
+    challengeCreateFn: async (authz, challenge, keyAuthorization) => {
+      console.log('Creating challenge...')
+      if (challenge.type !== 'http-01') {
+        throw new Error(`Cannot use challenge function for ${challenge.type}`)
+      }
+      const path = `.well-known/http-challenge/${challenge.token}`
+      console.log(`Creating challenge response for ${authz.identifier.value} at: ${path}`)
+      await uploadFile(path, keyAuthorization)
+      console.log(`Wrote "${keyAuthorization}" at: "${path}"`)
+    },
+    challengeRemoveFn: async (authz, challenge, keyAuthorization) => {
+      console.log('Removing challenge...')
+      if (challenge.type !== 'http-01') {
+        throw new Error(`Cannot use challenge function for ${challenge.type}`)
+      }
+      const path = `.well-known/http-challenge/${challenge.token}`
+      console.log(`Removing challenge response for ${authz.identifier.value} at path: ${path}`)
+      await removeFile(path)
+      console.log(`Removed file on path "${path}"`)
     }
-    const path = `.well-known/http-challenge/${challenge.token}`
-    console.log(`Creating challenge response for ${authz.identifier.value} at: ${path}`)
-    await uploadFile(path, keyAuthorization)
-    console.log(`Wrote "${keyAuthorization}" at: "${path}"`)
-  },
-  challengeRemoveFn: async (authz, challenge, keyAuthorization) => {
-    console.log('Removing challenge...')
-    if (challenge.type !== 'http-01') {
-      throw new Error(`Cannot use challenge function for ${challenge.type}`)
-    }
-    const path = `.well-known/http-challenge/${challenge.token}`
-    console.log(`Removing challenge response for ${authz.identifier.value} at path: ${path}`)
-    await removeFile(path)
-    console.log(`Removed file on path "${path}"`)
   }
 }
 
@@ -102,21 +110,16 @@ const DNSChallenger = () => {
     }
   }
 }
-
-async function createNewCertificate ({ sld, staging = false }) {
-  let accountKey
-  if (config.acmeKeyFile) {
-    const key = await fs.readFile(config.acmeKeyFile, { encoding: 'utf-8' })
-    accountKey = Buffer.from(key)
-  } else {
-    accountKey = await acme.crypto.createPrivateKey()
+async function reloadDnsZone ({ domain }) {
+  try {
+    const { data: { loaded, success } } = await dnsApiBase.get('/reload', { params: { zone: `${domain}.` } })
+    console.log('CoreDNS-Redis server response:', { loaded, success })
+  } catch (ex) {
+    console.error(`Cannot reload CoreDNS Redis for zone [${domain}.]`, ex?.response?.code, ex?.response?.data)
   }
-  const client = new acme.Client({ accountKey, directoryUrl: staging ? acme.directory.letsencrypt.staging : acme.directory.letsencrypt.production })
-  const domain = `${sld}.${config.tld}`
-  const [key, csr] = await acme.crypto.createCsr({
-    commonName: domain,
-    altNames: [domain, `*.${domain}`]
-  })
+}
+
+async function setInitialDNS ({ domain }) {
   // set up CAA and other essential records first, before asking letsencrypt to challenge us and issue certificate
   // CAA is critical because letsencrypt will check that first
   const rs = await redisClient.hSet(`${domain}.`, '@', JSON.stringify({
@@ -125,35 +128,92 @@ async function createNewCertificate ({ sld, staging = false }) {
     caa: [{ ttl: 300, flag: 0, tag: 'issue', value: 'letsencrypt.org' }, { ttl: 300, flag: 0, tag: 'issue', value: 'pki.goog' }]
   }))
   console.log(`Redis response A/SOA/CAA: ${rs}`)
-  // TODO: ping coredns server to load the zone, since it won't reload zones until ttl and this zone might be new
-  try {
-    const { data: { loaded, success } } = await dnsApiBase.get('/reload', { params: { zone: `${domain}.` } })
-    console.log('CoreDNS-Redis server response:', { loaded, success })
-  } catch (ex) {
-    console.error(`Cannot reload CoreDNS Redis for zone [${domain}.]`, ex?.response?.code, ex?.response?.data)
+  await reloadDnsZone({ domain })
+}
+
+async function buildClient ({ sld, staging = false }) {
+  let accountKey
+  if (config.acmeKeyFile) {
+    const key = await fs.readFile(config.acmeKeyFile, { encoding: 'utf-8' })
+    accountKey = Buffer.from(key)
+  } else {
+    accountKey = await acme.crypto.createPrivateKey()
   }
+  const client = new acme.Client({ accountKey, directoryUrl: staging ? acme.directory.letsencrypt.staging : acme.directory.letsencrypt.production })
+  return client
+}
+
+const logGcpError = (ex) => {
+  if (ex.statusDetails) {
+    for (let i = 0; i < ex.statusDetails.length; i++) {
+      console.error(i, ex.statusDetails[i])
+    }
+  }
+}
+
+const makeCert = async ({ client, domain, wcOnly = false, nakedOnly = false }) => {
+  const csrOptions = wcOnly ? { commonName: domain } : { commonName: domain, altNames: [domain, `*.${domain}`] }
+  const [key, csr] = await acme.crypto.createCsr(csrOptions)
   // use dns-01 and DNSChallengeFunctions if have wildcards in altNames
-  const { mutex, ...funcs } = DNSChallenger()
+  const { mutex, ...funcs } = nakedOnly ? HTTPChallengeFunctions() : DNSChallenger()
   const cert = await client.auto({
     csr,
     email: 'aaron@hiddenstate.xyz',
     termsOfServiceAgreed: true,
-    challengePriority: ['dns-01'],
+    challengePriority: nakedOnly ? ['http-01'] : ['dns-01'],
     // skipChallengeVerification: true,
     ...funcs
   })
+  return { cert, key, csr }
+}
+async function createNewCertificate ({ sld, staging = false, wcOnly = false, nakedOnly = false }) {
+  if (nakedOnly && wcOnly) {
+    throw new Error('wcOnly and nakedOnly cannot both be true')
+  }
+  const domain = `${sld}.${config.tld}`
+  const client = await buildClient({ sld, staging })
+  await setInitialDNS({ domain })
+  const { cert, key, csr } = await makeCert({ client, domain, wcOnly, nakedOnly })
   try {
     const certId = await createSelfManagedCertificate({ domain, cert, key })
-    const { certMapId } = await createCertificateMapEntries({ domain })
+    const { certMapId } = await createCertificateMapEntry({ domain, certId })
+    await createWcCertificateMapEntry({ domain })
     return { csr, cert, key, certId, certMapId }
   } catch (ex) {
-    if (ex.statusDetails) {
-      for (let i = 0; i < ex.statusDetails.length; i++) {
-        console.error(ex.statusDetails[i])
-      }
-    }
+    logGcpError(ex)
     throw ex
   }
 }
 
-module.exports = { createNewCertificate }
+const makeTimeBasedSuffix = () => new Date().toISOString().slice(0, 19).replaceAll(':', '-').toLowerCase()
+
+async function renewCertificate ({ sld, staging = false, wcOnly = false, nakedOnly = false }) {
+  if (nakedOnly && wcOnly) {
+    throw new Error('wcOnly and nakedOnly cannot both be true')
+  }
+  const domain = `${sld}.${config.tld}`
+  const client = await buildClient({ sld, staging })
+  const { cert, key, csr } = await makeCert({ client, domain, wcOnly, nakedOnly })
+  try {
+    const certId = await createSelfManagedCertificate({ domain, cert, key, suffix: makeTimeBasedSuffix() })
+    if (!wcOnly) {
+      await deleteCertificateMapEntry({ sld })
+    }
+    if (!nakedOnly) {
+      await deleteWcCertificateMapEntry({ sld })
+    }
+    let certMapId
+    if (!wcOnly) {
+      ({ certMapId } = await createCertificateMapEntry({ domain, certId }))
+    }
+    if (!nakedOnly) {
+      ({ certMapId } = await createWcCertificateMapEntry({ domain, certId }))
+    }
+    return { csr, cert, key, certId, certMapId }
+  } catch (ex) {
+    logGcpError(ex)
+    throw ex
+  }
+}
+
+module.exports = { createNewCertificate, renewCertificate }

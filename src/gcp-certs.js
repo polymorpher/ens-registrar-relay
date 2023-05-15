@@ -30,7 +30,7 @@ const parent = `projects/${config.gcp.gceProjectId}/locations/global`
   https://cloud.google.com/compute/docs/naming-resources
  */
 
-const createCertificateMapEntries = async ({ domain, certId }) => {
+const createCertificateMapEntry = async ({ domain, certId }) => {
   const domainId = domain.replaceAll('.', '-')
   certId = certId || `${parent}/certificates/${domainId}`
   const certMapId = `${parent}/certificateMaps/${config.gcp.certificateMapId}`
@@ -44,6 +44,16 @@ const createCertificateMapEntries = async ({ domain, certId }) => {
   })
   await opCertMapEntryCreate.promise()
   console.log(`CertificateMapEntry created for ${domainId} under ${parent}`)
+  return {
+    certId,
+    certMapId,
+  }
+}
+
+const createWcCertificateMapEntry = async ({ domain, certId }) => {
+  const domainId = domain.replaceAll('.', '-')
+  certId = certId || `${parent}/certificates/${domainId}`
+  const certMapId = `${parent}/certificateMaps/${config.gcp.certificateMapId}`
   const [opWcCertMapEntryCreate] = await client.createCertificateMapEntry({
     parent: certMapId,
     certificateMapEntryId: `wc-${domainId}`,
@@ -94,7 +104,8 @@ const createNewCertificate = async ({ sld }) => {
   })
   await opCertCreate.promise()
   console.log('Managed-Certificate created')
-  const { certId, certMapId } = await createCertificateMapEntries({ domain })
+  const { certId, certMapId } = await createCertificateMapEntry({ domain })
+  await createWcCertificateMapEntry({ domain })
   return {
     domain,
     domainId,
@@ -104,12 +115,17 @@ const createNewCertificate = async ({ sld }) => {
   }
 }
 
-const createSelfManagedCertificate = async ({ domain, cert, key }) => {
+const getSelfManagedCertificateId = ({ domain, suffix }) => {
   const domainId = domain.replaceAll('.', '-')
-  const certId = `${parent}/certificates/${domainId}`
+  const id = `${domainId}${suffix ? ('-' + suffix) : ''}`
+  const certId = `${parent}/certificates/${id}`
+  return [certId, id]
+}
+const createSelfManagedCertificate = async ({ domain, cert, key, suffix }) => {
+  const [certId, partialId] = getSelfManagedCertificateId({ domain, suffix })
   const [opCertCreate] = await client.createCertificate({
     parent,
-    certificateId: domainId,
+    certificateId: partialId,
     certificate: {
       selfManaged: {
         pemCertificate: cert.toString().replaceAll('\n\n', '\n'),
@@ -122,34 +138,55 @@ const createSelfManagedCertificate = async ({ domain, cert, key }) => {
   return certId
 }
 
-const deleteCertificate = async ({ sld }) => {
+const deleteCertificateMapEntry = async ({ sld }) => {
   const domain = `${sld}.${config.tld}`
   const domainId = domain.replaceAll('.', '-')
-  const certId = `${parent}/certificates/${domainId}`
   const certMapId = `${parent}/certificateMaps/${config.gcp.certificateMapId}`
   const mapEntryId = `${certMapId}/certificateMapEntries/${domainId}`
-  const mapEntryWcId = `${certMapId}/certificateMapEntries/wc-${domainId}`
-  const dnsAuthId = `${parent}/dnsAuthorizations/${domainId}`
   const [op1] = await client.deleteCertificateMapEntry({ name: mapEntryId })
   const r1 = await op1.promise()
   console.log(`Deleted ${mapEntryId}`, r1)
+}
+
+const deleteWcCertificateMapEntry = async ({ sld }) => {
+  const domain = `${sld}.${config.tld}`
+  const domainId = domain.replaceAll('.', '-')
+  const certMapId = `${parent}/certificateMaps/${config.gcp.certificateMapId}`
+  const mapEntryWcId = `${certMapId}/certificateMapEntries/wc-${domainId}`
   const [op2] = await client.deleteCertificateMapEntry({ name: mapEntryWcId })
   const r2 = await op2.promise()
   console.log(`Deleted ${mapEntryWcId}`, r2)
+}
+const deleteCertificate = async ({ sld, suffix }) => {
+  const domain = `${sld}.${config.tld}`
+  const [certId] = getSelfManagedCertificateId({ domain, suffix })
   const [op3] = await client.deleteCertificate({ name: certId })
   const r3 = await op3.promise()
   console.log(`Deleted ${certId}`, r3)
+}
+
+const deleteDnsAuth = async ({ sld }) => {
+  const domain = `${sld}.${config.tld}`
+  const domainId = domain.replaceAll('.', '-')
+  const dnsAuthId = `${parent}/dnsAuthorizations/${domainId}`
   const [op4] = await client.deleteDnsAuthorization({ name: dnsAuthId })
   const r4 = await op4.promise()
   console.log(`Deleted ${dnsAuthId}`, r4)
 }
 
-const getCertificate = async ({ sld }) => {
+const cleanup = async ({ sld }) => {
+  await deleteCertificateMapEntry({ sld })
+  await deleteWcCertificateMapEntry({ sld })
+  await deleteCertificate({ sld })
+  await deleteDnsAuth({ sld })
+}
+
+const getCertificate = async ({ sld, suffix }) => {
   const domain = `${sld}.${config.tld}`
-  const domainId = domain.replaceAll('.', '-')
-  const certId = `${parent}/certificates/${domainId}`
+  const [certId] = getSelfManagedCertificateId({ domain, suffix })
   try {
     const [cr] = await client.getCertificate({ name: certId })
+    client.listCertificates()
     return cr
   } catch (ex) {
     console.error('[getCertificate]', sld, ex?.code, ex?.details)
@@ -157,4 +194,22 @@ const getCertificate = async ({ sld }) => {
   }
 }
 
-module.exports = { createNewCertificate, createCertificateMapEntries, createSelfManagedCertificate, deleteCertificate, getCertificate }
+// TODO: pagination
+const listCertificates = async () => {
+  const [certs] = await client.listCertificates({ parent })
+  return certs
+}
+
+module.exports = {
+  createNewCertificate,
+  createCertificateMapEntry,
+  createWcCertificateMapEntry,
+  createSelfManagedCertificate,
+  deleteCertificate,
+  getCertificate,
+  deleteCertificateMapEntry,
+  deleteWcCertificateMapEntry,
+  getSelfManagedCertificateId,
+  cleanup,
+  listCertificates
+}

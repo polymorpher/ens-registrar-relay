@@ -14,6 +14,7 @@ const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../s
 const { createNewCertificate, renewCertificate } = require('../src/letsencrypt-certs')
 const { enableSubdomains, getWildcardSubdomainRecord } = require('../src/subdomains')
 const { getCertificate, getCertificateMapEntry, parseCertId } = require('../src/gcp-certs')
+const { schedule, lookup, lookupByJobId } = require('../src/cert-scheduler')
 const { nameUtils } = require('./util')
 const axios = require('axios')
 const limiter = (args) => rateLimit({
@@ -89,8 +90,8 @@ router.post('/cert',
     if (!errors.isEmpty()) {
       return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
     }
-    const { domain, address } = req.body
-    console.log('[/cert]', { domain, address })
+    const { domain, address, async } = req.body
+    console.log('[/cert]', { domain, address, async })
     const sld = domain.split('.country')[0]
     const expiry = await nameExpires(sld)
     if (expiry <= Date.now()) {
@@ -105,12 +106,41 @@ router.post('/cert',
       }
     }
     try {
-      await createNewCertificate({ sld })
-      res.json({ success: true, sld })
+      if (!async) {
+        await createNewCertificate({ sld })
+        res.json({ success: true, sld })
+        return
+      }
+      const nakedJobId = schedule({ sld, wc: false })
+      const wcJobId = schedule({ sld, wc: true })
+      return res.json({ success: true, wcJobId, nakedJobId, sld })
     } catch (ex) {
       console.error('[/cert][error]', ex)
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'certificate generation failed, please try again later' })
     }
+  })
+
+router.post('/cert-job-lookup',
+  limiter(),
+  body('domain').isLength({ min: 1, max: 32 }).optional().trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
+  body('jobId').isUUID(1).optional(),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
+    }
+    const { domain, jobId } = req.body
+    if (!domain && !jobId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ error: 'at least one must be provided: domain, jobId', domain, jobId })
+    }
+    console.log('[/cert-job-lookup]', { domain, jobId })
+    const sld = domain.split('.country')[0]
+    if (jobId) {
+      const job = await lookupByJobId({ jobId })
+      return res.json(job)
+    }
+    const jobs = await lookup({ sld })
+    return res.json(jobs)
   })
 
 router.post('/renew-cert',

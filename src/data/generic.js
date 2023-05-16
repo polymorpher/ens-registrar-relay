@@ -35,7 +35,7 @@ const GenericBuilder = (inKind) => {
     let query = ds.createQuery(kind)
     predicates.filter(e => e).forEach(p => {
       if (_.isArray(p)) {
-        const [ field, value ] = p
+        const [field, value] = p
         query = query.filter(field, value)
       } else {
         const { field, operator, value } = p

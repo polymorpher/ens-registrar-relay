@@ -176,8 +176,13 @@ async function createNewCertificate ({ sld, staging = false, wcOnly = false, nak
   const { cert, key, csr } = await makeCert({ client, domain, wcOnly, nakedOnly })
   try {
     const certId = await createSelfManagedCertificate({ domain, cert, key })
-    const { certMapId } = await createCertificateMapEntry({ domain, certId })
-    await createWcCertificateMapEntry({ domain })
+    let certMapId = ''
+    if (!wcOnly) {
+      ({ certMapId } = await createCertificateMapEntry({ domain, certId }))
+    }
+    if (!nakedOnly) {
+      ({ certMapId } = await createWcCertificateMapEntry({ domain }))
+    }
     return { csr, cert, key, certId, certMapId }
   } catch (ex) {
     logGcpError(ex)

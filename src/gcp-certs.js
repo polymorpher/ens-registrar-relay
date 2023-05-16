@@ -204,8 +204,13 @@ const getCertificateMapEntry = async ({ sld }) => {
   const domainId = domain.replaceAll('.', '-')
   const certMapId = `${parent}/certificateMaps/${config.gcp.certificateMapId}`
   const mapEntryId = `${certMapId}/certificateMapEntries/${domainId}`
-  const [mapEntry] = await client.getCertificateMapEntry({ name: mapEntryId })
-  return mapEntry
+  try {
+    const [mapEntry] = await client.getCertificateMapEntry({name: mapEntryId})
+    return mapEntry
+  }catch(ex){
+    console.error('[getCertificateMapEntry]', sld, ex?.code, ex?.details)
+    return null
+  }
 }
 
 const parseCertId = (certId) => {

@@ -97,10 +97,12 @@ router.post('/cert',
       return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain expired', domain })
     }
     const crm = await getCertificateMapEntry({ sld })
-    const [, suffix] = parseCertId(crm.certificates[0])
-    const cr = await getCertificate({ sld, suffix })
-    if (cr) {
-      return res.json({ error: 'certificate already exists', sld })
+    if (crm) {
+      const [, suffix] = parseCertId(crm.certificates[0])
+      const cr = await getCertificate({ sld, suffix })
+      if (cr) {
+        return res.json({ error: 'certificate already exists', sld })
+      }
     }
     try {
       await createNewCertificate({ sld })
@@ -128,6 +130,9 @@ router.post('/renew-cert',
       return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'domain expired or expiring within 30 days', expires })
     }
     const crm = await getCertificateMapEntry({ sld })
+    if (!crm) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'domain certificate does not exist, try calling [/cert] first' })
+    }
     const [, suffix] = parseCertId(crm.certificates[0])
     const cert = await getCertificate({ sld, suffix })
     if (now + 3600 * 1000 * 24 * 30 < cert.expireTime.seconds * 1000) {

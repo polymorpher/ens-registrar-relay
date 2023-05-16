@@ -11,9 +11,9 @@ const { Purchase } = require('../src/data/purchase')
 const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../src/enom-api') : require('../src/namecheap-api')
 // const requestIp = require('request-ip')
 // const { createNewCertificate } = require('../src/gcp-certs')
-const { createNewCertificate } = require('../src/letsencrypt-certs')
+const { createNewCertificate, renewCertificate } = require('../src/letsencrypt-certs')
 const { enableSubdomains, getWildcardSubdomainRecord } = require('../src/subdomains')
-const { getCertificate } = require('../src/gcp-certs')
+const { getCertificate, getCertificateMapEntry, parseCertId } = require('../src/gcp-certs')
 const { nameUtils } = require('./util')
 const axios = require('axios')
 const limiter = (args) => rateLimit({
@@ -89,25 +89,59 @@ router.post('/cert',
     if (!errors.isEmpty()) {
       return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
     }
-    const { txHash, domain, address } = req.body
-    console.log('[/cert]', { txHash, domain, address })
-    const name = domain.split('.country')[0]
-    const expiry = await nameExpires(name)
+    const { domain, address } = req.body
+    console.log('[/cert]', { domain, address })
+    const sld = domain.split('.country')[0]
+    const expiry = await nameExpires(sld)
     if (expiry <= Date.now()) {
       return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain expired', domain })
     }
-    const cr = await getCertificate({ sld: name })
+    const crm = await getCertificateMapEntry({ sld })
+    const [, suffix] = parseCertId(crm.certificates[0])
+    const cr = await getCertificate({ sld, suffix })
     if (cr) {
-      return res.json({ error: 'certificate already exists', sld: name })
+      return res.json({ error: 'certificate already exists', sld })
     }
     try {
-      await createNewCertificate({ sld: name })
-      res.json({ success: true, sld: name })
+      await createNewCertificate({ sld })
+      res.json({ success: true, sld })
     } catch (ex) {
       console.error('[/cert][error]', ex)
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'certificate generation failed, please try again later' })
     }
   })
+
+router.post('/renew-cert',
+  limiter(),
+  body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
+    }
+    const { domain, address } = req.body
+    console.log('[/renew-cert]', { domain, address })
+    const sld = domain.split('.country')[0]
+    const expires = await nameExpires(sld)
+    const now = Date.now()
+    if (expires < now + 3600 * 1000 * 24 * 30) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'domain expired or expiring within 30 days', expires })
+    }
+    const crm = await getCertificateMapEntry({ sld })
+    const [, suffix] = parseCertId(crm.certificates[0])
+    const cert = await getCertificate({ sld, suffix })
+    if (now + 3600 * 1000 * 24 * 30 < cert.expireTime.seconds * 1000) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'cert not expiring in the next 30 days', certExpires: cert.expireTime.seconds * 1000 })
+    }
+    try {
+      await renewCertificate({ sld })
+    } catch (ex) {
+      console.error('[/renew-cert][error]', ex)
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'certificate generation failed, please try again later' })
+    }
+  }
+
+)
 // very primitive locking mechanism
 const purchasePending = {}
 router.post('/purchase',

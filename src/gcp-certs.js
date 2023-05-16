@@ -186,7 +186,6 @@ const getCertificate = async ({ sld, suffix }) => {
   const [certId] = getSelfManagedCertificateId({ domain, suffix })
   try {
     const [cr] = await client.getCertificate({ name: certId })
-    client.listCertificates()
     return cr
   } catch (ex) {
     console.error('[getCertificate]', sld, ex?.code, ex?.details)
@@ -200,6 +199,22 @@ const listCertificates = async () => {
   return certs
 }
 
+const getCertificateMapEntry = async ({ sld }) => {
+  const domain = `${sld}.${config.tld}`
+  const domainId = domain.replaceAll('.', '-')
+  const certMapId = `${parent}/certificateMaps/${config.gcp.certificateMapId}`
+  const mapEntryId = `${certMapId}/certificateMapEntries/${domainId}`
+  const [mapEntry] = await client.getCertificateMapEntry({ name: mapEntryId })
+  return mapEntry
+}
+
+const parseCertId = (certId) => {
+  const parts = certId.split('/')
+  const id = parts[parts.length - 1]
+  const [sld, , ...suffix] = id.split('-')
+  return [sld, suffix.join('-')]
+}
+
 module.exports = {
   createNewCertificate,
   createCertificateMapEntry,
@@ -211,5 +226,7 @@ module.exports = {
   deleteWcCertificateMapEntry,
   getSelfManagedCertificateId,
   cleanup,
-  listCertificates
+  listCertificates,
+  getCertificateMapEntry,
+  parseCertId
 }

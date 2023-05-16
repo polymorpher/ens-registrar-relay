@@ -14,14 +14,14 @@ async function main () {
   const certs = await gcp.listCertificates()
   const now = Date.now()
   for (const c of certs) {
-    const domain = getDomainFromDNSNames(c.sanDnsnames)
+    const domain = getDomainFromDNSNames({ dnsNames: c.sanDnsnames })
     const certExpires = Number(c.expireTime.seconds) * 1000
     const sld = domain.split('.')[0]
     const expires = await nameExpires(sld)
     if (expires > now && expires > certExpires + 3600 * 24 * 1000 * 7) {
       // should renew cert
       const { certId, certMapId } = await le.renewCertificate({ sld })
-      console.log(`Renewed ${sld} (expiry: ${new Date(expires).toLocaleString()}); certId=${certId} certMapId=${certMapId}`)
+      console.log(`Renewed ${sld} (expiry: ${new Date(expires).toLocaleString()}) certExpiry=${new Date(certExpires).toLocaleString()} ; certId=${certId} certMapId=${certMapId}`)
     } else {
       // skip and log
       console.log(`Skipped renewing for ${sld}; (expiry: ${new Date(expires).toLocaleString()}) certExpiry: ${new Date(certExpires).toLocaleString()}`)

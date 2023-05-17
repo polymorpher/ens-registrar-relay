@@ -1,15 +1,15 @@
+const config = require('../config')
 const { v1: uuid } = require('uuid')
 const le = require('./letsencrypt-certs')
 const { backOff } = require('exponential-backoff')
-const config = require('../config')
 const { CertJob } = require('./data/certjob')
 
 async function lookup ({ sld, wc }) {
   const domain = `${sld}.${config.tld}`
   const jobs = await CertJob.findPendingJobs({ domain, wc })
   return jobs.map(j => {
-    const { completed, success, attempts, jobId, wc, creationTime, timeUpdated } = j
-    return { completed, success, attempts, jobId, wc, creationTime, timeUpdated }
+    const { completed, success, domain, attempts, jobId, wc, creationTime, timeUpdated } = j
+    return { completed, success, domain, attempts, jobId, wc, creationTime, timeUpdated }
   })
 }
 
@@ -18,8 +18,8 @@ async function lookupByJobId ({ jobId }) {
   if (!job) {
     return null
   }
-  const { completed, success, attempts, wc, creationTime, timeUpdated } = job
-  return { completed, success, attempts, jobId, wc, creationTime, timeUpdated }
+  const { completed, success, domain, attempts, wc, creationTime, timeUpdated } = job
+  return { completed, success, domain, attempts, jobId, wc, creationTime, timeUpdated }
 }
 
 async function schedule ({ sld, wc, renew = false }) {

@@ -32,18 +32,19 @@ const parent = `projects/${config.gcp.gceProjectId}/locations/global`
 
 const createCertificateMapEntry = async ({ domain, certId }) => {
   const domainId = domain.replaceAll('.', '-')
+  const certificateMapEntryId = domainId
   certId = certId || `${parent}/certificates/${domainId}`
   const certMapId = `${parent}/certificateMaps/${config.gcp.certificateMapId}`
   const [opCertMapEntryCreate] = await client.createCertificateMapEntry({
     parent: certMapId,
-    certificateMapEntryId: domainId,
+    certificateMapEntryId,
     certificateMapEntry: {
       hostname: domain,
       certificates: [certId]
     }
   })
   await opCertMapEntryCreate.promise()
-  console.log(`CertificateMapEntry created for ${domainId} under ${parent}`)
+  console.log(`[createCertificateMapEntry] created for entryId=${certificateMapEntryId} under map=${certMapId}, certId=${certId}`)
   return {
     certId,
     certMapId,
@@ -63,7 +64,7 @@ const createWcCertificateMapEntry = async ({ domain, certId }) => {
     }
   })
   await opWcCertMapEntryCreate.promise()
-  console.log(`CertificateMapEntry created for wc-${domainId} under ${parent}`)
+  console.log(`CertificateMapEntry created for entryId=wc-${domainId} under map=${certMapId}, certId=${certId}`)
   return {
     certId,
     certMapId,
@@ -134,7 +135,7 @@ const createSelfManagedCertificate = async ({ domain, cert, key, suffix }) => {
     }
   })
   await opCertCreate.promise()
-  console.log(`GCP: Self-managed certificate created for ${domain}`)
+  console.log(`GCP: Self-managed certificate created for ${domain}; certId=${certId}`)
   return certId
 }
 
@@ -205,9 +206,9 @@ const getCertificateMapEntry = async ({ sld }) => {
   const certMapId = `${parent}/certificateMaps/${config.gcp.certificateMapId}`
   const mapEntryId = `${certMapId}/certificateMapEntries/${domainId}`
   try {
-    const [mapEntry] = await client.getCertificateMapEntry({name: mapEntryId})
+    const [mapEntry] = await client.getCertificateMapEntry({ name: mapEntryId })
     return mapEntry
-  }catch(ex){
+  } catch (ex) {
     console.error('[getCertificateMapEntry]', sld, ex?.code, ex?.details)
     return null
   }

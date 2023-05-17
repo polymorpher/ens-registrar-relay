@@ -9,9 +9,9 @@ const {
   createSelfManagedCertificate, createCertificateMapEntry, createWcCertificateMapEntry, deleteCertificateMapEntry,
   deleteWcCertificateMapEntry
 } = require('./gcp-certs')
+
 const storage = new Storage({
-  projectId: config.gcp.certStorage.projectId,
-  credentials: config.gcp.certStorage.cred,
+  keyFile: config.gcp.certStorage.cred,
 })
 
 const bucket = storage.bucket(config.gcp.certStorage.bucket)
@@ -143,27 +143,39 @@ async function buildClient ({ sld, staging = false }) {
   return client
 }
 
-const logGcpError = (ex) => {
+const logGcpError = (ex, prefix = '[error]') => {
   if (ex.statusDetails) {
     for (let i = 0; i < ex.statusDetails.length; i++) {
-      console.error(i, ex.statusDetails[i])
+      console.error(prefix, i, ex.statusDetails[i])
     }
   }
 }
 
 const makeCert = async ({ client, domain, wcOnly = false, nakedOnly = false }) => {
-  const csrOptions = wcOnly ? { commonName: domain } : { commonName: domain, altNames: [domain, `*.${domain}`] }
+  let csrOptions = null
+  if (wcOnly) {
+    csrOptions = { commonName: `*.${domain}` }
+  } else if (nakedOnly) {
+    csrOptions = { commonName: domain }
+  } else if (!nakedOnly && !wcOnly) {
+    csrOptions = { commonName: domain, altNames: [domain, `*.${domain}`] }
+  } else {
+    throw new Error('wcOnly and nakedOnly cannot both be true')
+  }
   const [key, csr] = await acme.crypto.createCsr(csrOptions)
   // use dns-01 and DNSChallengeFunctions if have wildcards in altNames
+  console.log('[makeCert]', { wcOnly, nakedOnly, domain })
   const { mutex, ...funcs } = nakedOnly ? HTTPChallengeFunctions() : DNSChallenger()
-  const cert = await client.auto({
+  const certOptions = {
     csr,
     email: 'aaron@hiddenstate.xyz',
     termsOfServiceAgreed: true,
     challengePriority: nakedOnly ? ['http-01'] : ['dns-01'],
     // skipChallengeVerification: true,
     ...funcs
-  })
+  }
+  // console.log(certOptions)
+  const cert = await client.auto(certOptions)
   return { cert, key, csr }
 }
 async function createNewCertificate ({ sld, staging = false, wcOnly = false, nakedOnly = false }) {
@@ -175,17 +187,23 @@ async function createNewCertificate ({ sld, staging = false, wcOnly = false, nak
   await setInitialDNS({ domain })
   const { cert, key, csr } = await makeCert({ client, domain, wcOnly, nakedOnly })
   try {
-    const certId = await createSelfManagedCertificate({ domain, cert, key })
+    let suffix = ''
+    if (wcOnly) {
+      suffix = 'wc'
+    } else if (nakedOnly) {
+      suffix = 'naked'
+    }
+    const certId = await createSelfManagedCertificate({ domain, cert, key, suffix })
     let certMapId = ''
     if (!wcOnly) {
       ({ certMapId } = await createCertificateMapEntry({ domain, certId }))
     }
     if (!nakedOnly) {
-      ({ certMapId } = await createWcCertificateMapEntry({ domain }))
+      ({ certMapId } = await createWcCertificateMapEntry({ domain, certId }))
     }
     return { csr, cert, key, certId, certMapId }
   } catch (ex) {
-    logGcpError(ex)
+    logGcpError(ex, '[createNewCertificate][error]')
     throw ex
   }
 }
@@ -216,7 +234,7 @@ async function renewCertificate ({ sld, staging = false, wcOnly = false, nakedOn
     }
     return { csr, cert, key, certId, certMapId }
   } catch (ex) {
-    logGcpError(ex)
+    logGcpError(ex, '[renewCertificate][error]')
     throw ex
   }
 }

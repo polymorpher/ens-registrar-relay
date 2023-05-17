@@ -151,7 +151,7 @@ router.post('/renew-cert',
     if (!errors.isEmpty()) {
       return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
     }
-    const { domain, address } = req.body
+    const { domain, address, async } = req.body
     console.log('[/renew-cert]', { domain, address })
     const sld = domain.split('.country')[0]
     const expires = await nameExpires(sld)
@@ -169,7 +169,14 @@ router.post('/renew-cert',
       return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'cert not expiring in the next 30 days', certExpires: cert.expireTime.seconds * 1000 })
     }
     try {
-      await renewCertificate({ sld })
+      if (!async) {
+        await renewCertificate({ sld })
+        res.json({ success: true, sld })
+        return
+      }
+      const nakedJobId = schedule({ sld, wc: false, renew: true })
+      const wcJobId = schedule({ sld, wc: true, renew: true })
+      return res.json({ success: true, wcJobId, nakedJobId, sld })
     } catch (ex) {
       console.error('[/renew-cert][error]', ex)
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'certificate generation failed, please try again later' })

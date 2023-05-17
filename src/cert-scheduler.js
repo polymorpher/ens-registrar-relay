@@ -32,7 +32,7 @@ async function schedule ({ sld, wc, renew = false }) {
     return { error: 'already scheduled', jobId: jobs[0].jobId, creationTime: jobs[0].creationTime }
   }
   const jobId = uuid()
-  await CertJob.addNew({ jobId, domain, wc })
+  await CertJob.addNew({ jobId, domain, wc, renew })
   backOff(async () => {
     const options = wc ? { wcOnly: true } : { nakedOnly: true }
     let certId = ''; let certMapId = ''

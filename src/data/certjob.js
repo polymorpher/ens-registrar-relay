@@ -2,13 +2,14 @@ const { GenericBuilder } = require('./generic')
 const CertJobPrototype = GenericBuilder('certjob')
 const CertJob = ({
   ...CertJobPrototype,
-  addNew: async ({ jobId, domain, certId, certMapId, wc }) => {
+  addNew: async ({ jobId, domain, certId, certMapId, wc, renew }) => {
     const details = {
       jobId,
       certId,
       certMapId,
       domain,
       wc,
+      renew,
       completed: false,
       success: false,
       attempts: 0,

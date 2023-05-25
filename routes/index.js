@@ -111,8 +111,8 @@ router.post('/cert',
         res.json({ success: true, sld })
         return
       }
-      const nakedJobId = schedule({ sld, wc: false })
-      const wcJobId = schedule({ sld, wc: true })
+      const nakedJobId = await schedule({ sld, wc: false })
+      const wcJobId = await schedule({ sld, wc: true })
       return res.json({ success: true, wcJobId, nakedJobId, sld })
     } catch (ex) {
       console.error('[/cert][error]', ex)

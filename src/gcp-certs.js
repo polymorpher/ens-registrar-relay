@@ -64,7 +64,7 @@ const createWcCertificateMapEntry = async ({ domain, certId }) => {
     }
   })
   await opWcCertMapEntryCreate.promise()
-  console.log(`CertificateMapEntry created for entryId=wc-${domainId} under map=${certMapId}, certId=${certId}`)
+  console.log(`[createWcCertificateMapEntry] created for entryId=wc-${domainId} under map=${certMapId}, certId=${certId}`)
   return {
     certId,
     certMapId,

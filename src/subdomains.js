@@ -17,8 +17,11 @@ const getWildcardSubdomainRecord = async ({ sld }) => {
   return res
 }
 
-const verifyMessage = async ({ signature, address, subdomain, sld, targetDomain, deadline }) => {
-  const message = `I want to forward subdomain ${subdomain}.${sld}.${config.tld} to ${targetDomain}. This operation has to complete by timestamp ${deadline}`
+const verifyMessage = async ({ signature, address, subdomain, deleteRecord, sld, targetDomain, deadline }) => {
+  let message = `I want to map subdomain ${subdomain}.${sld}.${config.tld} to ${targetDomain}. This operation has to complete by timestamp ${deadline}`
+  if (deleteRecord) {
+    message = `I want to delete subdomain mapping for ${subdomain}.${sld}.${config.tld}. This operation has to complete by timestamp ${deadline}`
+  }
   const ra = w3utils.utils.ecrecover(message, signature)
   return (ra !== address.toLowerCase())
 }

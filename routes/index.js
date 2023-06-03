@@ -473,7 +473,7 @@ router.post('/cname',
       if (!(Date.now() / 1000 < deadline)) {
         return res.status(StatusCodes.BAD_REQUEST).json({ error: 'deadline exceeded', deadline })
       }
-      const valid = await verifyMessage({ address: owner, sld, signature, subdomain, deadline, targetDomain })
+      const valid = await verifyMessage({ address: owner, sld, signature, deleteRecord, subdomain, deadline, targetDomain })
       if (!valid) {
         return res.status(StatusCodes.BAD_REQUEST).json({ error: 'invalid signature', signature })
       }

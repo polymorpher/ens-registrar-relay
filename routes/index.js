@@ -478,10 +478,10 @@ router.post('/cname',
         return res.status(StatusCodes.BAD_REQUEST).json({ error: 'invalid signature', signature })
       }
       if (deleteRecord) {
-        await setCname({ sld, '', subdomain })
+        await setCname({ sld, targetDomain: '', subdomain })
         return res.json({ success: true, deleteRecord })
       }
-      await setCname({sld, targetDomain, subdomain})
+      await setCname({ sld, targetDomain, subdomain })
       return res.json({ success: true })
     } catch (ex) {
       if (ex.response) {

@@ -6,6 +6,7 @@ const config = require('../config')
 const web3 = new Web3(config.provider)
 const TLDBaseRegistrarImplementation = require('../abi/TLDBaseRegistrarImplementation.json')
 const EWSAbi = require('../abi/EWS.json')
+const DCAbi = require('../abi/DC.json')
 const Contract = require('web3-eth-contract')
 Contract.setProvider(web3.currentProvider)
 
@@ -153,8 +154,18 @@ const nameExpires = async (sld) => {
 const getSubdomains = async (sld) => {
   const c = new Contract(EWSAbi, config.ews)
   const node = utils.keccak256(sld, true)
-  console.log(node, config.ews)
+  // console.log(node, config.ews)
   return c.methods.getSubdomains(node).call()
 }
 
-module.exports = { utils, getDomainRegistrationEvent, parseNameRegistrationLog, parseNameRegistrationData, TOPIC_NAME_REGISTRATION, nameExpires, getSubdomains }
+const getOwner = async (sld) => {
+  const c = new Contract(DCAbi, config.dc)
+  try {
+    return c.methods.ownerOf(sld).call()
+  } catch (ex) {
+    console.error(ex)
+    return null
+  }
+}
+
+module.exports = { utils, getOwner, getDomainRegistrationEvent, parseNameRegistrationLog, parseNameRegistrationData, TOPIC_NAME_REGISTRATION, nameExpires, getSubdomains }

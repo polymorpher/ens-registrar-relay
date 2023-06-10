@@ -459,7 +459,7 @@ router.post('/cname',
   body('signature').isLength({ min: 132, max: 132 }).trim().matches('^0x[abcdefABCDEF0-9]+$'),
   body('deadline').isNumeric(),
   body('targetDomain').trim().matches('^[a-zA-Z0-9]+[a-zA-Z0-9-.]+[a-zA-Z0-9]+$'),
-  body('deleteRecord').isBoolean(),
+  body('deleteRecord').isBoolean().optional(),
   async (req, res) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {

@@ -3,7 +3,7 @@
 Set CNAME record for a subdomain. Requires domain owner's signature for authentication
 
 ```
-POST https://1ns-registrar-relayer.hiddenstate.xyz/cname
+POST /cname
 {
     "domain": "zeroknowledge.country",
     "subdomain": "abc",

@@ -7,8 +7,10 @@ const { redisClient } = require('./redis')
 const { Mutex } = require('async-mutex')
 const {
   createSelfManagedCertificate, createCertificateMapEntry, createWcCertificateMapEntry, deleteCertificateMapEntry,
-  deleteWcCertificateMapEntry
+  deleteWcCertificateMapEntry, getCertificate
 } = require('./gcp-certs')
+const lodash = require('lodash')
+const { sleep } = require('./utils')
 
 const storage = new Storage({
   keyFile: config.gcp.certStorage.cred,
@@ -127,11 +129,11 @@ async function setInitialDNS ({ domain }) {
     soa: config.dns.soa,
     caa: [{ ttl: 300, flag: 0, tag: 'issue', value: 'letsencrypt.org' }, { ttl: 300, flag: 0, tag: 'issue', value: 'pki.goog' }]
   }))
-  console.log(`Redis response A/SOA/CAA: ${rs}`)
+  console.log(`[${domain}][setInitialDNS] Redis response A/SOA/CAA: ${rs}`)
   await reloadDnsZone({ domain })
 }
 
-async function buildClient ({ sld, staging = false }) {
+async function buildClient ({ staging = false }) {
   let accountKey
   if (config.acmeKeyFile) {
     const key = await fs.readFile(config.acmeKeyFile, { encoding: 'utf-8' })
@@ -151,6 +153,23 @@ const logGcpError = (ex, prefix = '[error]') => {
   }
 }
 
+const makeCertCore = async ({ client, csrOptions, useHttp }) => {
+  const [key, csr] = await acme.crypto.createCsr(csrOptions)
+  // use dns-01 and DNSChallengeFunctions if have wildcards in altNames
+  const { mutex, ...funcs } = useHttp ? HTTPChallengeFunctions() : DNSChallenger()
+  const challengePriority = useHttp ? ['http-01'] : ['dns-01']
+  const certOptions = {
+    csr,
+    email: 'aaron@hiddenstate.xyz',
+    termsOfServiceAgreed: true,
+    challengePriority,
+    // skipChallengeVerification: true,
+    ...funcs
+  }
+  // console.log(certOptions)
+  const cert = await client.auto(certOptions)
+  return { cert, key, csr }
+}
 const makeCert = async ({ client, domain, wcOnly = false, nakedOnly = false }) => {
   let csrOptions = null
   if (wcOnly) {
@@ -162,28 +181,24 @@ const makeCert = async ({ client, domain, wcOnly = false, nakedOnly = false }) =
   } else {
     throw new Error('wcOnly and nakedOnly cannot both be true')
   }
-  const [key, csr] = await acme.crypto.createCsr(csrOptions)
-  // use dns-01 and DNSChallengeFunctions if have wildcards in altNames
   console.log('[makeCert]', { wcOnly, nakedOnly, domain })
-  const { mutex, ...funcs } = nakedOnly ? HTTPChallengeFunctions() : DNSChallenger()
-  const certOptions = {
-    csr,
-    email: 'aaron@hiddenstate.xyz',
-    termsOfServiceAgreed: true,
-    challengePriority: nakedOnly ? ['http-01'] : ['dns-01'],
-    // skipChallengeVerification: true,
-    ...funcs
-  }
-  // console.log(certOptions)
-  const cert = await client.auto(certOptions)
-  return { cert, key, csr }
+  return makeCertCore({ client, csrOptions, useHttp: nakedOnly })
 }
+
+const makeMultiCert = async ({ client, domains }) => {
+  const commonName = domains[0]
+  const altNames = domains.map(d => [d, `*.${d}`]).flat()
+  const csrOptions = { commonName, altNames }
+  console.log('[makeMultiCert]', JSON.stringify(domains))
+  return makeCertCore({ client, csrOptions, useHttp: false })
+}
+
 async function createNewCertificate ({ sld, staging = false, wcOnly = false, nakedOnly = false }) {
   if (nakedOnly && wcOnly) {
     throw new Error('wcOnly and nakedOnly cannot both be true')
   }
   const domain = `${sld}.${config.tld}`
-  const client = await buildClient({ sld, staging })
+  const client = await buildClient({ staging })
   await setInitialDNS({ domain })
   const { cert, key, csr } = await makeCert({ client, domain, wcOnly, nakedOnly })
   try {
@@ -206,6 +221,41 @@ async function createNewCertificate ({ sld, staging = false, wcOnly = false, nak
     logGcpError(ex, '[createNewCertificate][error]')
     throw ex
   }
+}
+
+async function createNewMultiCertificate ({ id, slds, staging = false, mapEntryWaitPeriod = 0 }) {
+  const existingCert = await getCertificate({ idOverride: id })
+  const domains = slds.map(sld => `${sld}.${config.tld}`)
+  let csr, cert, key, certId
+  if (!existingCert) {
+    const client = await buildClient({ staging })
+    for (const [i, chunk] of lodash.chunk(domains, 50).entries()) {
+      console.log(`[createNewMultiCertificate] processing batch ${i} of ${chunk.length}/${slds.length} domains`)
+      await Promise.all(chunk.map(d => setInitialDNS({ domain: d })))
+    }
+    ({ cert, key, csr } = await makeMultiCert({ client, domains }))
+    certId = await createSelfManagedCertificate({ idOverride: id, cert, key })
+  } else {
+    certId = existingCert.name
+  }
+
+  const results = []
+  for (const [i, chunk] of lodash.chunk(domains, 10).entries()) {
+    try {
+      const certMapIds = await Promise.all(chunk.map(domain => createCertificateMapEntry({ domain, certId })))
+      const wcCertMapIds = await Promise.all(chunk.map(domain => createWcCertificateMapEntry({ domain, certId })))
+      for (let j = 0; j < chunk.length; j++) {
+        results.push({ domain: chunk[i], certMapId: certMapIds[i].certMapId, wcCertMapId: wcCertMapIds[i].certMapId })
+      }
+    } catch (ex) {
+      console.error('[createNewMultiCertificate]', ex)
+    } finally {
+      if (mapEntryWaitPeriod) {
+        await sleep(mapEntryWaitPeriod)
+      }
+    }
+  }
+  return { csr, cert, key, results }
 }
 
 const makeTimeBasedSuffix = () => new Date().toISOString().slice(0, 19).replaceAll(':', '-').toLowerCase()
@@ -239,4 +289,4 @@ async function renewCertificate ({ sld, staging = false, wcOnly = false, nakedOn
   }
 }
 
-module.exports = { createNewCertificate, renewCertificate }
+module.exports = { createNewCertificate, createNewMultiCertificate, renewCertificate, setInitialDNS }

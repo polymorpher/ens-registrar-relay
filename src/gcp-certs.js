@@ -1,6 +1,7 @@
 const { CertificateManagerClient } = require('@google-cloud/certificate-manager').v1
 const config = require('../config')
 const { redisClient } = require('./redis')
+const lodash = require('lodash')
 const client = new CertificateManagerClient()
 const parent = `projects/${config.gcp.gceProjectId}/locations/global`
 
@@ -116,14 +117,14 @@ const createNewCertificate = async ({ sld }) => {
   }
 }
 
-const getSelfManagedCertificateId = ({ domain, suffix }) => {
-  const domainId = domain.replaceAll('.', '-')
-  const id = `${domainId}${suffix ? ('-' + suffix) : ''}`
+const getSelfManagedCertificateId = ({ idOverride = undefined, domain, suffix }) => {
+  const domainId = domain?.replaceAll('.', '-')
+  const id = idOverride ?? `${domainId}${suffix ? ('-' + suffix) : ''}`
   const certId = `${parent}/certificates/${id}`
   return [certId, id]
 }
-const createSelfManagedCertificate = async ({ domain, cert, key, suffix }) => {
-  const [certId, partialId] = getSelfManagedCertificateId({ domain, suffix })
+const createSelfManagedCertificate = async ({ idOverride = undefined, domain, cert, key, suffix }) => {
+  const [certId, partialId] = getSelfManagedCertificateId({ idOverride, domain, suffix })
   const [opCertCreate] = await client.createCertificate({
     parent,
     certificateId: partialId,
@@ -182,9 +183,9 @@ const cleanup = async ({ sld }) => {
   await deleteDnsAuth({ sld })
 }
 
-const getCertificate = async ({ sld, suffix }) => {
+const getCertificate = async ({ idOverride = undefined, sld, suffix }) => {
   const domain = `${sld}.${config.tld}`
-  const [certId] = getSelfManagedCertificateId({ domain, suffix })
+  const [certId] = getSelfManagedCertificateId({ idOverride, domain, suffix })
   try {
     const [cr] = await client.getCertificate({ name: certId })
     return cr
@@ -214,6 +215,17 @@ const getCertificateMapEntry = async ({ sld }) => {
   }
 }
 
+const filterSldsWithoutCert = async ({ slds }) => {
+  const results = []
+  for (const [i, chunk] of lodash.chunk(slds, 10).entries()) {
+    console.log(`[filterSldsWithoutCert] Looking up chunk ${i} of ${chunk.length}/${slds.length} domains`)
+    const mapEntries = await Promise.all(chunk.map(sld => getCertificateMapEntry({ sld })))
+    const domainsWihoutCerts = mapEntries.map((m, i) => m ? null : chunk[i])
+    results.push(...domainsWihoutCerts.filter(e => e))
+  }
+  return results
+}
+
 const parseCertId = (certId) => {
   const parts = certId.split('/')
   const id = parts[parts.length - 1]
@@ -234,5 +246,6 @@ module.exports = {
   cleanup,
   listCertificates,
   getCertificateMapEntry,
-  parseCertId
+  parseCertId,
+  filterSldsWithoutCert
 }

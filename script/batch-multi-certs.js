@@ -19,7 +19,7 @@ async function batchGenerate ({ slds, id }) {
   console.log('finalSlds', JSON.stringify(finalSlds))
   for (const [i, sldChunk] of lodash.chunk(finalSlds, 50).entries()) {
     console.log(`Starting chunk ${i} for ${JSON.stringify(sldChunk)}`)
-    const batchId = i > 0 ? `${id}-${i}` : id
+    const batchId = `${id}-${sldChunk[0]}-${sldChunk[sldChunk.length - 1]}`
     const ret = await le.createNewMultiCertificate({ id: batchId, slds: sldChunk, mapEntryWaitPeriod: 60 })
     console.log(`Finished chunk ${i}`)
     console.log(`Results: ${JSON.stringify(ret.results)}`)

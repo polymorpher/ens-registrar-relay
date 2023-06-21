@@ -248,7 +248,7 @@ async function createNewMultiCertificate ({ id, slds, staging = false, mapEntryW
         results.push({ domain: chunk[i], certMapId: certMapIds[i].certMapId, wcCertMapId: wcCertMapIds[i].certMapId })
       }
     } catch (ex) {
-      console.error('[createNewMultiCertificate]', ex)
+      logGcpError(ex, '[createNewMultiCertificate]')
     } finally {
       if (mapEntryWaitPeriod) {
         await sleep(mapEntryWaitPeriod)

@@ -13,14 +13,14 @@ async function batchGenerate ({ slds, id }) {
     console.log(`added ${filtered.length} slds: ${JSON.stringify(filtered)}`)
     // await Promise.all(chunk.map(domain => le.setInitialDNS({ domain })))
     finalSlds.push(...filtered)
-    console.log('Sleeping for 30 seconds')
-    await sleep(30)
+    console.log('Sleeping for 60 seconds')
+    await sleep(60)
   }
   console.log('finalSlds', JSON.stringify(finalSlds))
   for (const [i, sldChunk] of lodash.chunk(finalSlds, 50).entries()) {
     console.log(`Starting chunk ${i} for ${JSON.stringify(sldChunk)}`)
     const batchId = i > 0 ? `${id}-${i}` : id
-    const ret = await le.createNewMultiCertificate({ id: batchId, slds: sldChunk, mapEntryWaitPeriod: 10 })
+    const ret = await le.createNewMultiCertificate({ id: batchId, slds: sldChunk, mapEntryWaitPeriod: 60 })
     console.log(`Finished chunk ${i}`)
     console.log(`Results: ${JSON.stringify(ret.results)}`)
     console.log('Sleeping for 60 seconds')

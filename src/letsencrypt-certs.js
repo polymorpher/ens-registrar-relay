@@ -185,12 +185,12 @@ const makeCert = async ({ client, domain, wcOnly = false, nakedOnly = false }) =
   return makeCertCore({ client, csrOptions, useHttp: nakedOnly })
 }
 
-const makeMultiCert = async ({ client, domains }) => {
+const makeMultiCert = async ({ client, domains, wc = true }) => {
   const commonName = domains[0]
-  const altNames = domains.map(d => [d, `*.${d}`]).flat()
+  const altNames = wc ? domains.map(d => [d, `*.${d}`]).flat() : domains
   const csrOptions = { commonName, altNames }
   console.log('[makeMultiCert]', JSON.stringify(domains))
-  return makeCertCore({ client, csrOptions, useHttp: false })
+  return makeCertCore({ client, csrOptions, useHttp: !wc })
 }
 
 async function createNewCertificate ({ sld, staging = false, wcOnly = false, nakedOnly = false }) {
@@ -223,17 +223,19 @@ async function createNewCertificate ({ sld, staging = false, wcOnly = false, nak
   }
 }
 
-async function createNewMultiCertificate ({ id, slds, staging = false, mapEntryWaitPeriod = 0 }) {
+async function createNewMultiCertificate ({ id, slds, staging = false, mapEntryWaitPeriod = 0, skipInitDns = false, wc = true }) {
   const existingCert = await getCertificate({ idOverride: id })
   const domains = slds.map(sld => `${sld}.${config.tld}`)
   let csr, cert, key, certId
   if (!existingCert) {
     const client = await buildClient({ staging })
-    for (const [i, chunk] of lodash.chunk(domains, 50).entries()) {
-      console.log(`[createNewMultiCertificate] processing batch ${i} of ${chunk.length}/${slds.length} domains`)
-      await Promise.all(chunk.map(d => setInitialDNS({ domain: d })))
+    if (!skipInitDns) {
+      for (const [i, chunk] of lodash.chunk(domains, 50).entries()) {
+        console.log(`[createNewMultiCertificate] processing batch ${i} of ${chunk.length}/${slds.length} domains`)
+        await Promise.all(chunk.map(d => setInitialDNS({ domain: d })))
+      }
     }
-    ({ cert, key, csr } = await makeMultiCert({ client, domains }))
+    ({ cert, key, csr } = await makeMultiCert({ client, domains, wc }))
     certId = await createSelfManagedCertificate({ idOverride: id, cert, key })
   } else {
     certId = existingCert.name
@@ -243,9 +245,13 @@ async function createNewMultiCertificate ({ id, slds, staging = false, mapEntryW
   for (const [i, chunk] of lodash.chunk(domains, 10).entries()) {
     try {
       const certMapIds = await Promise.all(chunk.map(domain => createCertificateMapEntry({ domain, certId })))
-      const wcCertMapIds = await Promise.all(chunk.map(domain => createWcCertificateMapEntry({ domain, certId })))
+      let wcCertMapIds
+      if (wc) {
+        wcCertMapIds = await Promise.all(chunk.map(domain => createWcCertificateMapEntry({ domain, certId })))
+      }
       for (let j = 0; j < chunk.length; j++) {
-        results.push({ domain: chunk[i], certMapId: certMapIds[i].certMapId, wcCertMapId: wcCertMapIds[i].certMapId })
+        results.push({ domain: chunk[i], certMapId: certMapIds[i].certMapId, wcCertMapId: wcCertMapIds ? wcCertMapIds[i].certMapId : undefined })
+        // results.push({ domain: chunk[i], certMapId: certMapIds[i].certMapId })
       }
     } catch (ex) {
       logGcpError(ex, '[createNewMultiCertificate]')

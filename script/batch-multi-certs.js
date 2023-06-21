@@ -7,20 +7,22 @@ const chars = []
 
 async function batchGenerate ({ slds, id }) {
   console.log(`generating certs for ${slds.length} slds: ${JSON.stringify(slds)}`)
-  const finalSlds = []
-  for (const chunk of lodash.chunk(slds, 150)) {
-    const filtered = await gcp.filterSldsWithoutCert({ slds: chunk })
-    console.log(`added ${filtered.length} slds: ${JSON.stringify(filtered)}`)
-    // await Promise.all(chunk.map(domain => le.setInitialDNS({ domain })))
-    finalSlds.push(...filtered)
-    console.log('Sleeping for 60 seconds')
-    await sleep(60)
-  }
-  console.log('finalSlds', JSON.stringify(finalSlds))
+  // const finalSlds = []
+  // for (const chunk of lodash.chunk(slds, 150)) {
+  //   const filtered = await gcp.filterSldsWithoutCert({ slds: chunk, checkWc: false })
+  //   console.log(`added ${filtered.length} slds: ${JSON.stringify(filtered)}`)
+  //   // await Promise.all(chunk.map(domain => le.setInitialDNS({ domain })))
+  //   finalSlds.push(...filtered)
+  //   console.log('Sleeping for 60 seconds')
+  //   await sleep(60)
+  // }
+  const finalSlds = await gcp.filterSldsWithoutCert({ slds, checkWc: false })
+  console.log(`finalSlds length=${finalSlds.length}`, JSON.stringify(finalSlds))
   for (const [i, sldChunk] of lodash.chunk(finalSlds, 50).entries()) {
-    console.log(`Starting chunk ${i} for ${JSON.stringify(sldChunk)}`)
-    const batchId = `${id}-${sldChunk[0]}-${sldChunk[sldChunk.length - 1]}`
-    const ret = await le.createNewMultiCertificate({ id: batchId, slds: sldChunk, mapEntryWaitPeriod: 60 })
+    const sortedSlds = sldChunk.sort()
+    console.log(`Starting chunk ${i} for ${JSON.stringify(sortedSlds)}`)
+    const batchId = `${id}-${sortedSlds[0]}-${sortedSlds[sortedSlds.length - 1]}`
+    const ret = await le.createNewMultiCertificate({ id: batchId, slds: sortedSlds, mapEntryWaitPeriod: 60, skipInitDns: true, wc: false })
     console.log(`Finished chunk ${i}`)
     console.log(`Results: ${JSON.stringify(ret.results)}`)
     console.log('Sleeping for 60 seconds')

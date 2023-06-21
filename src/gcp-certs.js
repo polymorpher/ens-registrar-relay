@@ -201,6 +201,12 @@ const listCertificates = async () => {
   return certs
 }
 
+const listCertificateMapEntries = async () => {
+  const certMapId = `${parent}/certificateMaps/${config.gcp.certificateMapId}`
+  const [mapEntries] = await client.listCertificateMapEntries({ parent: certMapId })
+  return mapEntries
+}
+
 const getCertificateMapEntry = async ({ sld, wc = false }) => {
   const domain = `${sld}.${config.tld}`
   const domainId = domain.replaceAll('.', '-')
@@ -215,7 +221,7 @@ const getCertificateMapEntry = async ({ sld, wc = false }) => {
   }
 }
 
-const filterSldsWithoutCert = async ({ slds }) => {
+const filterSldsWithoutCertEach = async ({ slds }) => {
   const results = []
   for (const [i, chunk] of lodash.chunk(slds, 10).entries()) {
     console.log(`[filterSldsWithoutCert] Looking up chunk ${i} of ${chunk.length}/${slds.length} domains`)
@@ -225,6 +231,22 @@ const filterSldsWithoutCert = async ({ slds }) => {
     results.push(...domainsWihoutCerts.filter(e => e))
   }
   return results
+}
+
+const filterSldsWithoutCert = async ({ slds, checkWc = true }) => {
+  const entries = await listCertificateMapEntries()
+  const results = slds.filter(sld => {
+    const i = entries.findIndex(e => e.hostname === `${sld}.${config.tld}`)
+    if (!checkWc && i < 0) {
+      return true
+    }
+    const j = entries.findIndex(e => e.hostname === `*.${sld}.${config.tld}`)
+    if (i < 0 && j < 0) {
+      return true
+    }
+    return false
+  })
+  return results.filter(e => e)
 }
 
 const parseCertId = (certId) => {
@@ -246,7 +268,9 @@ module.exports = {
   getSelfManagedCertificateId,
   cleanup,
   listCertificates,
+  listCertificateMapEntries,
   getCertificateMapEntry,
   parseCertId,
-  filterSldsWithoutCert
+  filterSldsWithoutCert,
+  filterSldsWithoutCertEach
 }

@@ -201,16 +201,16 @@ const listCertificates = async () => {
   return certs
 }
 
-const getCertificateMapEntry = async ({ sld }) => {
+const getCertificateMapEntry = async ({ sld, wc = false }) => {
   const domain = `${sld}.${config.tld}`
   const domainId = domain.replaceAll('.', '-')
   const certMapId = `${parent}/certificateMaps/${config.gcp.certificateMapId}`
-  const mapEntryId = `${certMapId}/certificateMapEntries/${domainId}`
+  const mapEntryId = wc ? `${certMapId}/certificateMapEntries/wc-${domainId}` : `${certMapId}/certificateMapEntries/${domainId}`
   try {
     const [mapEntry] = await client.getCertificateMapEntry({ name: mapEntryId })
     return mapEntry
   } catch (ex) {
-    console.error('[getCertificateMapEntry]', sld, ex?.code, ex?.details)
+    console.error(`[getCertificateMapEntry][wc=${wc}]`, sld, ex?.code, ex?.details)
     return null
   }
 }
@@ -220,7 +220,8 @@ const filterSldsWithoutCert = async ({ slds }) => {
   for (const [i, chunk] of lodash.chunk(slds, 10).entries()) {
     console.log(`[filterSldsWithoutCert] Looking up chunk ${i} of ${chunk.length}/${slds.length} domains`)
     const mapEntries = await Promise.all(chunk.map(sld => getCertificateMapEntry({ sld })))
-    const domainsWihoutCerts = mapEntries.map((m, i) => m ? null : chunk[i])
+    const mapEntries2 = await Promise.all(chunk.map(sld => getCertificateMapEntry({ sld, wc: true })))
+    const domainsWihoutCerts = mapEntries.map((m, i) => m && mapEntries2[i] ? null : chunk[i])
     results.push(...domainsWihoutCerts.filter(e => e))
   }
   return results

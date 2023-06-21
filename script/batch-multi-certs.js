@@ -8,7 +8,7 @@ const chars = []
 async function batchGenerate ({ slds, id }) {
   console.log(`generating certs for ${slds.length} slds: ${JSON.stringify(slds)}`)
   const finalSlds = []
-  for (const chunk of lodash.chunk(slds, 250)) {
+  for (const chunk of lodash.chunk(slds, 150)) {
     const filtered = await gcp.filterSldsWithoutCert({ slds: chunk })
     console.log(`added ${filtered.length} slds: ${JSON.stringify(filtered)}`)
     // await Promise.all(chunk.map(domain => le.setInitialDNS({ domain })))

@@ -100,15 +100,13 @@ router.post('/cert',
     const crm = await getCertificateMapEntry({ sld })
     const crmWc = await getCertificateMapEntry({ sld, wc: true })
     const wcOnly = crm && !crmWc
-    if (crm) {
+    if (crm && crmWc) {
       const [, , idOverride] = parseCertId(crm.certificates[0])
       const cr = await getCertificate({ idOverride })
-      if (cr) {
-        const [, , idOverrideWcCert] = parseCertId(crmWc.certificates[0])
-        const crWc = await getCertificate({ idOverride: idOverrideWcCert })
-        if (crWc) {
-          return res.json({ error: 'certificate already exists', sld })
-        }
+      const [, , idOverrideWcCert] = parseCertId(crmWc.certificates[0])
+      const crWc = await getCertificate({ idOverride: idOverrideWcCert })
+      if (cr && crWc) {
+        return res.json({ error: 'certificate already exists', sld })
       }
     }
     try {

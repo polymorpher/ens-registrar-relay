@@ -11,6 +11,8 @@ const {
 } = require('./gcp-certs')
 const lodash = require('lodash')
 const { sleep } = require('./utils')
+const { backOff } = require('exponential-backoff')
+const { CertJob } = require('./data/certjob')
 
 const storage = new Storage({
   keyFile: config.gcp.certStorage.cred,
@@ -53,7 +55,17 @@ const HTTPChallengeFunctions = () => {
       }
       const path = `.well-known/http-challenge/${challenge.token}`
       console.log(`Creating challenge response for ${authz.identifier.value} at: ${path}`)
-      await uploadFile(path, keyAuthorization)
+      await backOff(async () => {
+        await uploadFile(path, keyAuthorization)
+      }, {
+        numOfAttempts: 5,
+        startingDelay: 1000,
+        delayFirstAttempt: false,
+        retry: async (e, attemptNumber) => {
+          console.log(`[HTTPChallengeFunctions][challengeCreateFn][backOff][attempt=${attemptNumber}][domain=${authz?.identifier?.value}] error:`, e)
+          return attemptNumber <= 5
+        }
+      })
       console.log(`Wrote "${keyAuthorization}" at: "${path}"`)
     },
     challengeRemoveFn: async (authz, challenge, keyAuthorization) => {
@@ -63,7 +75,11 @@ const HTTPChallengeFunctions = () => {
       }
       const path = `.well-known/http-challenge/${challenge.token}`
       console.log(`Removing challenge response for ${authz.identifier.value} at path: ${path}`)
-      await removeFile(path)
+      try {
+        await removeFile(path)
+      } catch (ex) {
+        console.error('[HTTPChallengeFunctions][challengeRemoveFn]', ex)
+      }
       console.log(`Removed file on path "${path}"`)
     }
   }

@@ -2,7 +2,8 @@ const gcp = require('../src/gcp-certs')
 const le = require('../src/letsencrypt-certs')
 const lodash = require('lodash')
 const { sleep } = require('../src/utils')
-
+const dig = require('node-dig-dns')
+const config = require('../config')
 const chars = []
 
 async function batchGenerate ({ slds, id }) {
@@ -16,8 +17,21 @@ async function batchGenerate ({ slds, id }) {
   //   console.log('Sleeping for 60 seconds')
   //   await sleep(60)
   // }
-  const finalSlds = await gcp.filterSldsWithoutCert({ slds, checkWc: false })
+  const badDomains = []
+  const filteredSlds = await gcp.filterSldsWithoutCert({ slds, checkWc: false })
+  const finalSlds = []
+  for (const chunk of lodash.chunk(filteredSlds, 50)) {
+    const answers = await Promise.all(chunk.map(sld => dig([`${sld}.${config.tld}`, 'A'])))
+    const filteredChunk = answers.filter(e => e?.answer?.[0]?.value === '34.160.72.19')
+      .map(e => e.answer[0].domain.split('.')[0])
+    const badChunk = lodash.difference(chunk, filteredChunk)
+    badDomains.push(...badChunk)
+    console.log('badChunk:', badChunk)
+    console.log(`added ${filteredChunk.length} slds: ${JSON.stringify(filteredChunk)}`)
+    finalSlds.push(...filteredChunk)
+  }
   console.log(`finalSlds length=${finalSlds.length}`, JSON.stringify(finalSlds))
+  console.log('badDomains', badDomains)
   for (const [i, sldChunk] of lodash.chunk(finalSlds, 50).entries()) {
     const sortedSlds = sldChunk.sort()
     console.log(`Starting chunk ${i} for ${JSON.stringify(sortedSlds)}`)
@@ -30,7 +44,7 @@ async function batchGenerate ({ slds, id }) {
   }
 }
 
-const Excluded = ['li', 'ml', 'ba', 'ec', 'au']
+const Excluded = ['li', 'ml', 'ba', 'ec', 'au', 'ep', 'eu', 'un']
 async function main () {
   for (let i = 97; i <= 122; i += 1) {
     chars.push(String.fromCharCode(i))

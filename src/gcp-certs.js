@@ -253,7 +253,7 @@ const parseCertId = (certId) => {
   const parts = certId.split('/')
   const id = parts[parts.length - 1]
   const [sld, , ...suffix] = id.split('-')
-  return [sld, suffix.join('-')]
+  return [sld, suffix.join('-'), id]
 }
 
 module.exports = {

@@ -98,20 +98,29 @@ router.post('/cert',
       return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain expired', domain })
     }
     const crm = await getCertificateMapEntry({ sld })
+    const crmWc = await getCertificateMapEntry({ sld, wc: true })
+    const wcOnly = crm && !crmWc
     if (crm) {
-      const [, suffix] = parseCertId(crm.certificates[0])
-      const cr = await getCertificate({ sld, suffix })
+      const [, , idOverride] = parseCertId(crm.certificates[0])
+      const cr = await getCertificate({ idOverride })
       if (cr) {
-        return res.json({ error: 'certificate already exists', sld })
+        const [, , idOverrideWcCert] = parseCertId(crmWc.certificates[0])
+        const crWc = await getCertificate({ idOverride: idOverrideWcCert })
+        if (crWc) {
+          return res.json({ error: 'certificate already exists', sld })
+        }
       }
     }
     try {
       if (!async) {
-        await createNewCertificate({ sld })
-        res.json({ success: true, sld })
+        await createNewCertificate({ sld, wcOnly })
+        res.json({ success: true, sld, wcOnly })
         return
       }
-      const nakedJobId = await schedule({ sld, wc: false })
+      let nakedJobId
+      if (!wcOnly) {
+        nakedJobId = await schedule({ sld, wc: false })
+      }
       const wcJobId = await schedule({ sld, wc: true })
       return res.json({ success: true, wcJobId, nakedJobId, sld })
     } catch (ex) {

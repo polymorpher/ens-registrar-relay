@@ -8,6 +8,7 @@ const config = {
   ews: process.env.EWS,
   dc: process.env.DC,
   ewsIp: process.env.EWS_IP,
+  easIp: process.env.DEFAULT_MAIL_IP,
   tld: process.env.TLD || 'country',
   allowAdminOverride: process.env.ALLOW_ADMIN_OVERRIDE === 'true',
   registrarProvider: process.env.REGISTRAR_PROVIDER,

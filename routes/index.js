@@ -17,6 +17,7 @@ const { getCertificate, getCertificateMapEntry, parseCertId } = require('../src/
 const { schedule, lookup, lookupByJobId } = require('../src/cert-scheduler')
 const { nameUtils } = require('./util')
 const axios = require('axios')
+const { enableMail, isMailEnabled } = require('../src/mail')
 const limiter = (args) => rateLimit({
   windowMs: 1000 * 60,
   max: 60,
@@ -448,6 +449,37 @@ router.post('/enable-subdomains',
         return res.status(StatusCodes.BAD_REQUEST).json({ error: 'already enabled' })
       }
       await enableSubdomains({ sld })
+      res.json({ success: true })
+    } catch (ex) {
+      if (ex.response) {
+        console.error(ex.response.code, ex.response.data)
+      } else {
+        console.error(ex)
+      }
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })
+    }
+  })
+
+router.post('/enable-mail',
+  limiter(),
+  body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
+    }
+    const { domain } = req.body
+    console.log('[/enable-mail]', { domain })
+    const sld = domain.split('.country')[0]
+    try {
+      const expiry = await nameExpires(sld)
+      if (expiry <= Date.now()) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain expired', domain })
+      }
+      if (await isMailEnabled({ sld })) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ error: 'mail already enabled', domain })
+      }
+      await enableMail({ sld })
       res.json({ success: true })
     } catch (ex) {
       if (ex.response) {

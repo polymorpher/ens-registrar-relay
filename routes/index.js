@@ -441,10 +441,10 @@ router.post('/enable-subdomains',
     console.log('[/enable-subdomains]', { domain })
     const sld = domain.split('.country')[0]
     try {
-      const subdomains = await getSubdomains(sld)
-      if (subdomains.length === 0) {
-        return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'no subdomain enabled' })
-      }
+      // const subdomains = await getSubdomains(sld)
+      // if (subdomains.length === 0) {
+      //   return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'no subdomain enabled' })
+      // }
       if (await getWildcardSubdomainRecord({ sld })) {
         return res.status(StatusCodes.BAD_REQUEST).json({ error: 'already enabled' })
       }

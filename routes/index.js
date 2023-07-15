@@ -182,8 +182,8 @@ router.post('/renew-cert',
         res.json({ success: true, sld })
         return
       }
-      const nakedJobId = schedule({ sld, wc: false, renew: true })
-      const wcJobId = schedule({ sld, wc: true, renew: true })
+      const nakedJobId = await schedule({ sld, wc: false, renew: true })
+      const wcJobId = await schedule({ sld, wc: true, renew: true })
       return res.json({ success: true, wcJobId, nakedJobId, sld })
     } catch (ex) {
       console.error('[/renew-cert][error]', ex)

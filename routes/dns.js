@@ -6,10 +6,9 @@ const { body, validationResult } = require('express-validator')
 const appConfig = require('../config')
 const { getWildcardSubdomainRecord, enableSubdomains, verifyMessage, setCname } = require('../src/subdomains')
 const { nameExpires, getOwner } = require('../src/w3utils')
-const { newInstance } = require('../src/redis')
+const { newInstance, redisClient } = require('../src/redis')
 const { isMailEnabled, enableMail } = require('../src/mail')
 const rateLimit = require('express-rate-limit')
-const Redis = require('redis')
 const config = require('../config')
 
 const limiter = (args) => rateLimit({
@@ -158,20 +157,26 @@ router.post('/redirect',
       if (!valid) {
         return res.status(StatusCodes.BAD_REQUEST).json({ error: 'invalid signature', signature })
       }
-      if (subdomain === '@') {
-        // TODO
-        return
+      const record = JSON.parse(await redisClient.hGet(`${domain}.`, subdomain) ?? '{}')
+      if (subdomain === '@' && deleteRecord) {
+        record.a = [{ ttl: 300, ip: config.dns.ip }]
       }
-      if (subdomain === 'mail') {
-        // TODO
-        return
+      if (subdomain === 'mail' && deleteRecord) {
+        record.a = [{ ttl: 300, ip: config.easIp }]
+      } else if (deleteRecord) {
+        delete record.a
+      } else {
+        record.a = [{ ttl: 300, ip: config.redirect.serverIp }]
       }
-      if (subdomain === 'www') {
-        // TODO
-        return
+      await redisClient.hSet(`${domain}.`, subdomain, JSON.stringify(record))
+      const fqdn = subdomain === '@' ? domain : `${subdomain}.${domain}`
+      let rrResponse
+      if (deleteRecord) {
+        rrResponse = await redirectRedis.del(fqdn)
+      } else {
+        rrResponse = await redirectRedis.set(fqdn, target)
       }
-      const record = JSON.parse(await redirectRedis.hGet(`${domain}.`, subdomain) ?? '{}')
-      // record.a =
+      Logger.log('[/redirect]', `RedirectRedis Response: ${rrResponse}`, `[${fqdn}] to [${target}]`)
     } catch (ex) {
       console.error(ex)
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })

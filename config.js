@@ -103,6 +103,7 @@ const config = {
   },
   redirect: {
     redisUrl: process.env.REDIRECT_REDIS_URL ?? '',
+    serverIp: process.env.REDIRECT_SERVER_IP ?? '',
   }
 }
 module.exports = config

@@ -94,11 +94,15 @@ const config = {
     ip: process.env.DEFAULT_A_RECORD_IP,
     soa: process.env.DNS_SOA
       ? JSON.parse(process.env.DNS_SOA)
-      : { ttl: 600, min_tll: 300, mname: 'domains.hiddenstate.country.', rname: 'ns1.hiddenstate.xyz.', serial: 1, refresh: 300, retry: 60, expire: 1800 }
+      : { ttl: 600, min_tll: 300, mname: 'domains.hiddenstate.country.', rname: 'ns1.hiddenstate.xyz.', serial: 1, refresh: 300, retry: 60, expire: 1800 },
+    maintainers: JSON.parse(process.env.DNS_MAINTAINERS ?? '[]')
   },
   generator: {
     apiBase: process.env.GENERATOR_API_BASE, // http://ip:8001/
     metadataBucket: process.env.GOOGLE_CLOUD_STORAGE_BUCKET_NAME_METADATA
+  },
+  redirect: {
+    redisUrl: process.env.REDIRECT_REDIS_URL ?? '',
   }
 }
 module.exports = config

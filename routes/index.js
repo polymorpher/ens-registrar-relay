@@ -5,19 +5,17 @@ const { Logger } = require('../logger')
 const { body, validationResult } = require('express-validator')
 const rateLimit = require('express-rate-limit')
 const appConfig = require('../config')
-const { getDomainRegistrationEvent, getSubdomains, nameExpires, getOwner, utils: w3utils } = require('../src/w3utils')
+const { getDomainRegistrationEvent, nameExpires, utils: w3utils } = require('../src/w3utils')
 const { v1: uuid } = require('uuid')
 const { Purchase } = require('../src/data/purchase')
 const domainApiProvider = appConfig.registrarProvider === 'enom' ? require('../src/enom-api') : require('../src/namecheap-api')
 // const requestIp = require('request-ip')
 // const { createNewCertificate } = require('../src/gcp-certs')
 const { createNewCertificate, renewCertificate } = require('../src/letsencrypt-certs')
-const { enableSubdomains, getWildcardSubdomainRecord, verifyMessage, setCname } = require('../src/subdomains')
 const { getCertificate, getCertificateMapEntry, parseCertId } = require('../src/gcp-certs')
 const { schedule, lookup, lookupByJobId } = require('../src/cert-scheduler')
 const { nameUtils } = require('./util')
 const axios = require('axios')
-const { enableMail, isMailEnabled } = require('../src/mail')
 const limiter = (args) => rateLimit({
   windowMs: 1000 * 60,
   max: 60,
@@ -428,108 +426,5 @@ router.post('/renew-metadata',
     }
   }
 )
-
-router.post('/enable-subdomains',
-  limiter(),
-  body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
-  async (req, res) => {
-    const errors = validationResult(req)
-    if (!errors.isEmpty()) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
-    }
-    const { domain } = req.body
-    console.log('[/enable-subdomains]', { domain })
-    const sld = domain.split('.country')[0]
-    try {
-      // const subdomains = await getSubdomains(sld)
-      // if (subdomains.length === 0) {
-      //   return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'no subdomain enabled' })
-      // }
-      if (await getWildcardSubdomainRecord({ sld })) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ error: 'already enabled' })
-      }
-      await enableSubdomains({ sld })
-      res.json({ success: true })
-    } catch (ex) {
-      if (ex.response) {
-        console.error(ex.response.code, ex.response.data)
-      } else {
-        console.error(ex)
-      }
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })
-    }
-  })
-
-router.post('/enable-mail',
-  limiter(),
-  body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
-  async (req, res) => {
-    const errors = validationResult(req)
-    if (!errors.isEmpty()) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
-    }
-    const { domain } = req.body
-    console.log('[/enable-mail]', { domain })
-    const sld = domain.split('.country')[0]
-    try {
-      const expiry = await nameExpires(sld)
-      if (expiry <= Date.now()) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain expired', domain })
-      }
-      if (await isMailEnabled({ sld })) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ error: 'mail already enabled', domain })
-      }
-      await enableMail({ sld })
-      res.json({ success: true })
-    } catch (ex) {
-      if (ex.response) {
-        console.error(ex.response.code, ex.response.data)
-      } else {
-        console.error(ex)
-      }
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })
-    }
-  })
-
-router.post('/cname',
-  limiter(),
-  body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
-  body('subdomain').isLength({ min: 1, max: 32 }).trim().matches('^[a-z0-9-]+$'),
-  body('signature').isLength({ min: 132, max: 132 }).trim().matches('^0x[abcdefABCDEF0-9]+$'),
-  body('deadline').isNumeric(),
-  body('targetDomain').trim().matches('^[a-zA-Z0-9]+[a-zA-Z0-9-.]+[a-zA-Z0-9]+$'),
-  body('deleteRecord').isBoolean().optional(),
-  async (req, res) => {
-    const errors = validationResult(req)
-    if (!errors.isEmpty()) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
-    }
-    const { domain, signature, subdomain, deadline, targetDomain, deleteRecord } = req.body
-    console.log('[/cname]', { domain })
-    try {
-      const sld = domain.split('.country')[0]
-      const owner = await getOwner(sld)
-      if (!(Date.now() / 1000 < deadline)) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ error: 'deadline exceeded', deadline })
-      }
-      const valid = await verifyMessage({ address: owner, sld, signature, deleteRecord, subdomain, deadline, targetDomain })
-      if (!valid) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ error: 'invalid signature', signature })
-      }
-      if (deleteRecord) {
-        await setCname({ sld, targetDomain: '', subdomain })
-        return res.json({ success: true, deleteRecord })
-      }
-      await setCname({ sld, targetDomain, subdomain })
-      return res.json({ success: true })
-    } catch (ex) {
-      if (ex.response) {
-        console.error(ex.response.code, ex.response.data)
-      } else {
-        console.error(ex)
-      }
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })
-    }
-  })
 
 module.exports = router

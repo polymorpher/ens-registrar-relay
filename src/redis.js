@@ -12,6 +12,12 @@ const init = async () => {
   return redisClient.isReady
 }
 
+const newInstance = async (url) => {
+  const client = Redis.createClient({ url })
+  await client.connect()
+  return client
+}
+
 const test = async () => {
   const testRes = await redisClient.keys('*')
   console.log(testRes)
@@ -24,4 +30,4 @@ init().then(() => {
   process.exit(1)
 })
 
-module.exports = { redisClient, test }
+module.exports = { redisClient, test, newInstance }

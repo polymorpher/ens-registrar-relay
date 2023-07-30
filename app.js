@@ -7,6 +7,7 @@ const cookieParser = require('cookie-parser')
 const logger = require('morgan')
 const config = require('./config')
 const _index = require('./routes/index')
+const _dns = require('./routes/dns')
 const bodyParser = require('body-parser')
 const app = express()
 const https = require('https')
@@ -79,6 +80,7 @@ if (config.corsOrigins) {
 app.use(express.static(path.join(__dirname, 'public')))
 app.options('*', async (_req, res) => res.end())
 app.use('/', _index)
+app.use('/dns', _dns)
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

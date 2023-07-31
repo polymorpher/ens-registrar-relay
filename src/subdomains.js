@@ -22,7 +22,7 @@ const verifyMessage = ({ signature, addresses, subdomain, deleteRecord, sld, tar
   if (deleteRecord) {
     message = `I want to delete subdomain mapping for ${subdomain}.${sld}.${config.tld}. This operation has to complete by timestamp ${deadline}`
   }
-  const ra = w3utils.utils.ecrecover(message, signature)
+  const ra = w3utils.utils.ecrecover(message, signature).toLowerCase()
   return addresses.map(a => a.toLowerCase()).includes(ra)
 }
 
@@ -31,7 +31,7 @@ const verifyRedirect = ({ signature, addresses, fullUrl, deleteRecord, target, d
   if (deleteRecord) {
     message = `I want to delete mapping for ${fullUrl}. This operation has to complete by timestamp ${deadline}`
   }
-  const ra = w3utils.utils.ecrecover(message, signature)
+  const ra = w3utils.utils.ecrecover(message, signature).toLowerCase()
   return addresses.map(a => a.toLowerCase()).includes(ra)
 }
 

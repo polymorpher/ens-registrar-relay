@@ -205,6 +205,7 @@ router.post('/redirect',
         rrResponse = await redirectRedis.set(fullUrl, target)
       }
       Logger.log('[/redirect]', `RedirectRedis Response: ${rrResponse}`, `[${fullUrl}] to [${target}]`)
+      res.json({ success: true })
     } catch (ex) {
       console.error(ex)
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })

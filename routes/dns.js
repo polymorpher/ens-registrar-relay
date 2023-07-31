@@ -4,7 +4,7 @@ const { StatusCodes } = require('http-status-codes')
 const { Logger } = require('../logger')
 const { body, validationResult } = require('express-validator')
 const appConfig = require('../config')
-const { getWildcardSubdomainRecord, enableSubdomains, verifyMessage, setCname } = require('../src/subdomains')
+const { getWildcardSubdomainRecord, enableSubdomains, verifyMessage, setCname, verifyRedirect } = require('../src/subdomains')
 const { nameExpires, getOwner } = require('../src/w3utils')
 const { newInstance, redisClient } = require('../src/redis')
 const { isMailEnabled, enableMail } = require('../src/mail')
@@ -136,24 +136,52 @@ router.post('/redirect',
   limiter(),
   body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
   body('subdomain').isLength({ min: 1, max: 32 }).trim().matches('^(@|[a-z0-9-]+)$'),
+  body('path').custom((input) => {
+    if (!input) {
+      return false
+    }
+    input = input.toString()
+    if (input.includes('?') || input.includes('#')) {
+      return false
+    }
+    try {
+      // eslint-disable-next-line no-new
+      new URL(`https://google.com${input}`)
+      return true
+    } catch (ex) {
+      console.error(ex)
+      return false
+    }
+  }),
   body('signature').isLength({ min: 132, max: 132 }).trim().matches('^0x[abcdefABCDEF0-9]+$'),
   body('deadline').isNumeric(),
-  body('target').trim().matches(/^(http|https):\/\/[a-zA-Z0-9-.]+(\/|\/[/.a-zA-Z0-9-_#]+)?$/),
+  body('target').trim().custom((input) => {
+    try {
+      // eslint-disable-next-line no-new
+      new URL(input)
+      return true
+    } catch (ex) {
+      console.error(ex)
+      return false
+    }
+  }),
   body('deleteRecord').isBoolean().optional(),
   async (req, res) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
       return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
     }
-    const { domain, signature, subdomain, deadline, target, deleteRecord } = req.body
-    console.log('[/redirect]', { domain, signature, subdomain, deadline, target, deleteRecord })
+    const { domain, signature, subdomain, path, deadline, target, deleteRecord } = req.body
+    console.log('[/redirect]', { domain, signature, subdomain, path, deadline, target, deleteRecord })
     try {
       const sld = domain.split('.country')[0]
       const owner = await getOwner(sld)
       if (!(Date.now() / 1000 < deadline)) {
         return res.status(StatusCodes.BAD_REQUEST).json({ error: 'deadline exceeded', deadline })
       }
-      const valid = verifyMessage({ addresses: [owner, ...config.dns.maintainers], sld, signature, deleteRecord, subdomain, deadline, targetDomain: target })
+      const fqdn = subdomain === '@' ? domain : `${subdomain}.${domain}`
+      const fullUrl = path === '/' ? fqdn : `${fqdn}${path}`
+      const valid = verifyRedirect({ addresses: [owner, ...config.dns.maintainers], fullUrl, signature, deleteRecord, deadline, target })
       if (!valid) {
         return res.status(StatusCodes.BAD_REQUEST).json({ error: 'invalid signature', signature })
       }
@@ -169,14 +197,14 @@ router.post('/redirect',
         record.a = [{ ttl: 300, ip: config.redirect.serverIp }]
       }
       await redisClient.hSet(`${domain}.`, subdomain, JSON.stringify(record))
-      const fqdn = subdomain === '@' ? domain : `${subdomain}.${domain}`
+
       let rrResponse
       if (deleteRecord) {
-        rrResponse = await redirectRedis.del(fqdn)
+        rrResponse = await redirectRedis.del(fullUrl)
       } else {
-        rrResponse = await redirectRedis.set(fqdn, target)
+        rrResponse = await redirectRedis.set(fullUrl, target)
       }
-      Logger.log('[/redirect]', `RedirectRedis Response: ${rrResponse}`, `[${fqdn}] to [${target}]`)
+      Logger.log('[/redirect]', `RedirectRedis Response: ${rrResponse}`, `[${fullUrl}] to [${target}]`)
     } catch (ex) {
       console.error(ex)
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })

@@ -26,6 +26,15 @@ const verifyMessage = ({ signature, addresses, subdomain, deleteRecord, sld, tar
   return addresses.map(a => a.toLowerCase()).includes(ra)
 }
 
+const verifyRedirect = ({ signature, addresses, fullUrl, deleteRecord, target, deadline }) => {
+  let message = `I want to map ${fullUrl} to ${target}. This operation has to complete by timestamp ${deadline}`
+  if (deleteRecord) {
+    message = `I want to delete mapping for ${fullUrl}. This operation has to complete by timestamp ${deadline}`
+  }
+  const ra = w3utils.utils.ecrecover(message, signature)
+  return addresses.map(a => a.toLowerCase()).includes(ra)
+}
+
 const setCname = async ({ subdomain, sld, targetDomain }) => {
   if (!subdomain || subdomain === '@' || subdomain === 'mail') {
     throw new Error(`Subdomain ${subdomain} is reserved`)
@@ -54,4 +63,4 @@ const setCname = async ({ subdomain, sld, targetDomain }) => {
   }
 }
 
-module.exports = { enableSubdomains, getWildcardSubdomainRecord, verifyMessage, setCname }
+module.exports = { enableSubdomains, getWildcardSubdomainRecord, verifyMessage, setCname, verifyRedirect }

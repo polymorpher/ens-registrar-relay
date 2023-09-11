@@ -171,7 +171,7 @@ router.post('/renew-cert',
     }
     const [, suffix] = parseCertId(crm.certificates[0])
     const cert = await getCertificate({ sld, suffix })
-    if (now + 3600 * 1000 * 24 * 30 < cert.expireTime.seconds * 1000) {
+    if (cert && (now + 3600 * 1000 * 24 * 30 < (cert?.expireTime?.seconds || 0) * 1000)) {
       return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'cert not expiring in the next 30 days', certExpires: cert.expireTime.seconds * 1000 })
     }
     try {

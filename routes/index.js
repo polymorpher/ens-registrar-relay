@@ -162,8 +162,8 @@ router.post('/renew-cert',
     const sld = domain.split('.country')[0]
     const expires = await nameExpires(sld)
     const now = Date.now()
-    if (expires < now + 3600 * 1000 * 24 * 30) {
-      return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'domain expired or expiring within 30 days', expires })
+    if (expires < now + 3600 * 1000 * 24 * 3) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'domain expired or expiring within 3 days', expires })
     }
     const crm = await getCertificateMapEntry({ sld })
     if (!crm) {

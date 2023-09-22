@@ -180,7 +180,8 @@ router.post('/redirect',
         return res.status(StatusCodes.BAD_REQUEST).json({ error: 'deadline exceeded', deadline })
       }
       const fqdn = subdomain === '@' ? domain : `${subdomain}.${domain}`
-      const fullUrl = path === '/' ? fqdn : `${fqdn}${path}`
+      // const fullUrl = path === '/' ? fqdn : `${fqdn}${path}`
+      const fullUrl = `${fqdn}${path}`
       const valid = verifyRedirect({ addresses: [owner, ...config.dns.maintainers], fullUrl, signature, deleteRecord, deadline, target })
       if (!valid) {
         return res.status(StatusCodes.BAD_REQUEST).json({ error: 'invalid signature', signature })

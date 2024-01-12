@@ -1,6 +1,7 @@
 const { redisClient } = require('./redis')
 const config = require('../config')
 const w3utils = require('./w3utils')
+const { omit } = require('lodash')
 const enableSubdomains = async ({ sld }) => {
   const zone = `${sld}.${config.tld}.`
   const key = '*'
@@ -36,7 +37,7 @@ const verifyRedirect = ({ signature, addresses, fullUrl, deleteRecord, target, d
 }
 
 const setCname = async ({ subdomain, sld, targetDomain }) => {
-  if (!subdomain || subdomain === '@' || subdomain === 'mail') {
+  if (!subdomain || subdomain === 'mail') {
     throw new Error(`Subdomain ${subdomain} is reserved`)
   }
   const zone = `${sld}.${config.tld}.`
@@ -48,6 +49,12 @@ const setCname = async ({ subdomain, sld, targetDomain }) => {
     }
     const parsedRecord = JSON.parse(record)
     const keys = Object.keys(parsedRecord)
+    if (subdomain === '@') {
+      const newRecord = omit({ ...record, a: [{ ip: config.dns.ip, ttl: 300 }] }, ['cname'])
+      const res = await redisClient.hSet(zone, subdomain, JSON.stringify(newRecord))
+      console.log(`-setCname remove CNAME for ${subdomain} under ${sld}; reset A for ${subdomain}`, 'redis response: ', res)
+      return res
+    }
     if (keys.length > 1 || keys[0] !== 'cname') {
       throw new Error(`Cannot remove ${subdomain} under ${sld} - other records exists: ${keys} `)
     }
@@ -55,9 +62,14 @@ const setCname = async ({ subdomain, sld, targetDomain }) => {
     console.log(`-setCname remove ${subdomain} under ${sld}`, 'redis response: ', res)
     return res
   } else {
-    const res = await redisClient.hSet(zone, subdomain, JSON.stringify({
+    let record = {
       cname: [{ host: fqdn, ttl: 300 }]
-    }))
+    }
+    if (subdomain === '@') {
+      const oldRecord = JSON.parse(await redisClient.hGet(zone, subdomain) ?? '{}')
+      record = { ...omit(oldRecord, ['a']), ...record }
+    }
+    const res = await redisClient.hSet(zone, subdomain, JSON.stringify(record))
     console.log(`-setCname of ${subdomain} under ${sld} to ${fqdn}`, 'redis response: ', res)
     return res
   }

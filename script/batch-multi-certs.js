@@ -46,7 +46,8 @@ async function batchGenerate ({ slds, id }) {
 }
 
 const Excluded = ['li', 'ml', 'ba', 'ec', 'au', 'ep', 'eu', 'un',
-  '0', '00', '01', '02', '03', '04', 'h'
+  '0', '00', '01', '02', '03', '04',
+  'h', '0', '1', 's'
 ]
 async function main () {
   for (let i = 97; i <= 122; i += 1) {
@@ -57,7 +58,9 @@ async function main () {
   }
   const all2chars = chars.map(c1 => chars.map(c2 => `${c1}${c2}`)).flat()
   const filtered2chars = all2chars.filter(e => !Excluded.includes(e))
-  await batchGenerate({ slds: filtered2chars, id: 'all-2-chars-20230119' })
+  const filtered1char = chars.filter(e => !Excluded.includes(e))
+  // await batchGenerate({ slds: filtered2chars, id: 'all-2-chars-20230119' })
+  await batchGenerate({ slds: [...filtered1char, ...filtered2chars], id: 'all-1-char-20230120' })
 }
 
 main().catch(console.error)

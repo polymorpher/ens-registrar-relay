@@ -18,7 +18,8 @@ async function batchGenerate ({ slds, id }) {
   //   await sleep(60)
   // }
   const badDomains = []
-  const filteredSlds = await gcp.filterSldsWithoutCert({ slds, checkWc: false })
+  const filteredSlds = await gcp.filterSldsWithoutCert({ slds, checkWc: false, checkExpiry: true })
+  console.log(`filteredSlds: ${filteredSlds.length}`)
   const finalSlds = []
   for (const chunk of lodash.chunk(filteredSlds, 50)) {
     const answers = await Promise.all(chunk.map(sld => dig([`${sld}.${config.tld}`, 'A'])))
@@ -44,7 +45,9 @@ async function batchGenerate ({ slds, id }) {
   }
 }
 
-const Excluded = ['li', 'ml', 'ba', 'ec', 'au', 'ep', 'eu', 'un']
+const Excluded = ['li', 'ml', 'ba', 'ec', 'au', 'ep', 'eu', 'un',
+  '0', '00', '01', '02', '03', '04', 'h'
+]
 async function main () {
   for (let i = 97; i <= 122; i += 1) {
     chars.push(String.fromCharCode(i))
@@ -54,7 +57,7 @@ async function main () {
   }
   const all2chars = chars.map(c1 => chars.map(c2 => `${c1}${c2}`)).flat()
   const filtered2chars = all2chars.filter(e => !Excluded.includes(e))
-  await batchGenerate({ slds: filtered2chars, id: 'all-2-chars' })
+  await batchGenerate({ slds: filtered2chars, id: 'all-2-chars-20230119' })
 }
 
 main().catch(console.error)

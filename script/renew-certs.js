@@ -20,8 +20,13 @@ async function main () {
     const expires = await nameExpires(sld)
     if (expires > now && expires > certExpires + 3600 * 24 * 1000 * 7) {
       // should renew cert
-      const { certId, certMapId } = await le.renewCertificate({ sld })
-      console.log(`Renewed ${sld} (expiry: ${new Date(expires).toLocaleString()}) certExpiry=${new Date(certExpires).toLocaleString()} ; certId=${certId} certMapId=${certMapId}`)
+      try {
+        const { certId, certMapId } = await le.renewCertificate({ sld })
+        console.log(`Renewed ${sld} (expiry: ${new Date(expires).toLocaleString()}) certExpiry=${new Date(certExpires).toLocaleString()} ; certId=${certId} certMapId=${certMapId}`)
+      } catch (ex) {
+        console.error(ex)
+        console.error(`Error renewing domain ${domain} expiry=${new Date(expires).toLocaleString()})  certExpiry=${new Date(certExpires).toLocaleString()}`)
+      }
     } else {
       // skip and log
       console.log(`Skipped renewing for ${sld}; (expiry: ${new Date(expires).toLocaleString()}) certExpiry: ${new Date(certExpires).toLocaleString()}`)

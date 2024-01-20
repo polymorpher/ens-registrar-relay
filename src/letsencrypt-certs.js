@@ -7,7 +7,7 @@ const { redisClient } = require('./redis')
 const { Mutex } = require('async-mutex')
 const {
   createSelfManagedCertificate, createCertificateMapEntry, createWcCertificateMapEntry, deleteCertificateMapEntry,
-  deleteWcCertificateMapEntry, getCertificate
+  deleteWcCertificateMapEntry, getCertificate, getCertificateMapEntry
 } = require('./gcp-certs')
 const lodash = require('lodash')
 const { sleep } = require('./utils')
@@ -260,7 +260,14 @@ async function createNewMultiCertificate ({ id, slds, staging = false, mapEntryW
   const results = []
   for (const [i, chunk] of lodash.chunk(domains, 10).entries()) {
     try {
-      const certMapIds = await Promise.all(chunk.map(domain => createCertificateMapEntry({ domain, certId })))
+      const certMapIds = await Promise.all(chunk.map(async domain => {
+        const sld = domain.split('.')[0]
+        const existingEntry = getCertificateMapEntry({ sld })
+        if (existingEntry) {
+          await deleteCertificateMapEntry({ sld })
+        }
+        return createCertificateMapEntry({ domain, certId })
+      }))
       let wcCertMapIds
       if (wc) {
         wcCertMapIds = await Promise.all(chunk.map(domain => createWcCertificateMapEntry({ domain, certId })))

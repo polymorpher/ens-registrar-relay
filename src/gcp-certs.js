@@ -233,19 +233,37 @@ const filterSldsWithoutCertEach = async ({ slds }) => {
   return results
 }
 
-const filterSldsWithoutCert = async ({ slds, checkWc = true }) => {
+const filterSldsWithoutCert = async ({ slds, checkWc = true, checkExpiry = true }) => {
   const entries = await listCertificateMapEntries()
-  const results = slds.filter(sld => {
+  const now = Date.now()
+  const target = now + 3600 * 1000 * 24 * 30
+  const results = []
+  const certCache = {}
+  for (const sld of slds) {
     const i = entries.findIndex(e => e.hostname === `${sld}.${config.tld}`)
     if (!checkWc && i < 0) {
-      return true
+      results.push(sld)
+      continue
     }
     const j = entries.findIndex(e => e.hostname === `*.${sld}.${config.tld}`)
     if (i < 0 && j < 0) {
-      return true
+      results.push(sld)
+      continue
     }
-    return false
-  })
+    if (!checkExpiry) {
+      continue
+    }
+
+    const [certId] = entries[i].certificates
+    const [idOverride] = certId.split('/').slice(-1)
+    // console.log(`checking certificate for ${sld}, certId=${certId}`)
+    const cert = certCache[certId] ?? await getCertificate({ idOverride })
+    certCache[certId] = cert
+    // console.log(`Cached ${certId}; expiry=${cert.expireTime.seconds}`)
+    if (cert.expireTime.seconds * 1000 < target) {
+      results.push(sld)
+    }
+  }
   return results.filter(e => e)
 }
 

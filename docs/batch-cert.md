@@ -31,8 +31,10 @@ You should only do this when you need to manually execute the script for some re
 Setting up the cron job for `worker` account by running `crontab -e` then insert the following line:
 
 ```
-0 3 1 */2 * /opt/ens-registrar-relay/batch-multi-certs.sh
+0 3 1 */2 * /opt/ens-registrar-relay/script/batch-multi-certs.sh
 ```
+
+(it translates to "At 03:00 on day-of-month 1 in every 2nd month")
 
 Any modified script could have the similar shell-script file created and inserted into crontab. Note that the account for crontab has to be `worker`, since Node.js  and global dependencies are only configured for that account
 

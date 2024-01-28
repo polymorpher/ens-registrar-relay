@@ -34,3 +34,5 @@ node_modules
 /ssh.sh
 
 dump.csv
+
+batch-multi-certs.log

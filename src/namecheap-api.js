@@ -15,6 +15,7 @@ base.interceptors.request.use((config) => {
   config.params.ApiUser = appConfig.namecheap.apiUser
   config.params.UserName = appConfig.namecheap.username
   config.params.ApiKey = appConfig.namecheap.apiKey
+  config.params.ClientIp = config.params.ClientIp || appConfig.namecheap.defaultIp
   return config
 })
 
@@ -125,4 +126,70 @@ const purchaseDomain = async ({ sld, ip = appConfig.namecheap.defaultIp }) => {
   return { success, pricePaid, orderId, responseCode, responseText: error, traceId }
 }
 
-module.exports = { checkIsDomainAvailable, purchaseDomain }
+async function listOwnedDomains ({ pageSize = 100, page = 0, expiring = false }) {
+  const { data } = await base.get('/xml.response', {
+    params: {
+      Command: 'namecheap.domains.getList',
+      ListType: expiring ? 'EXPIRING' : 'ALL',
+      PageSize: pageSize,
+      Page: page + 1,
+    }
+  })
+  const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' })
+  const parsed = parser.parse(data).ApiResponse
+  const result = parsed?.CommandResponse?.DomainGetListResult?.Domain || []
+  // console.log(result)
+  const error = parsed?.Errors?.Error?.['#text']
+  const responseCode = parseInt(parsed?.Errors?.Error?.['@_Number'] || '0')
+  const { TotalItems: totalItems, CurrentPage: currentPage, PageSize: actualPageSize } = parsed?.CommandResponse?.Paging ?? {}
+  // console.log(result)
+  const domains = result.map((entry) => {
+    const { '@_Name': name, '@_Created': created, '@_Expires': expires, '@_IsExpired': isExpired, '@_IsLocked': isLocked, '@_AutoRenew': autoRenew, '@_IsPremium': isPremium } = entry
+    return {
+      name,
+      created: new Date(created).getTime(),
+      expires: new Date(expires).getTime(),
+      isExpired: isExpired === 'true',
+      isLocked: isLocked === 'true',
+      autoRenew: autoRenew === 'true',
+      isPremium: isPremium === 'true'
+    }
+  })
+  return {
+    error,
+    responseCode,
+    domains,
+    totalItems,
+    currentPage,
+    actualPageSize
+  }
+}
+
+async function renewDomain ({ sld, ip = appConfig.namecheap.defaultIp }) {
+  const { data } = await base.get('/xml.response', {
+    params: {
+      Command: 'namecheap.domains.renew',
+      DomainName: `${sld}.${appConfig.tld}`,
+      IsPremiumDomain: 'false',
+      Years: '1',
+      ClientIp: ip
+    }
+  })
+  const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' })
+  const parsed = parser.parse(data).ApiResponse
+  const error = parsed?.Errors?.Error?.['#text']
+  const responseCode = parseInt(parsed?.Errors?.Error?.['@_Number'] || '0')
+  const result = parsed?.CommandResponse?.DomainCreateResult
+  const {
+    '@_Renew': renewed,
+    '@_OrderID': orderId,
+    '@_ChargedAmount': chargedAmount,
+    '@_TransactionID': traceId,
+  } = result || {}
+  const pricePaid = parseFloat(chargedAmount || '0')
+  const success = renewed === 'true'
+  console.log('[namecheap][renew]', sld, { success, pricePaid, orderId })
+  return { success, pricePaid, orderId, responseCode, responseText: error, traceId }
+}
+
+module.exports = { checkIsDomainAvailable, purchaseDomain, listOwnedDomains, renewDomain }

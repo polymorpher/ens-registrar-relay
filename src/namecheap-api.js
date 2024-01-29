@@ -192,4 +192,21 @@ async function renewDomain ({ sld, ip = appConfig.namecheap.defaultIp }) {
   return { success, pricePaid, orderId, responseCode, responseText: error, traceId }
 }
 
-module.exports = { checkIsDomainAvailable, purchaseDomain, listOwnedDomains, renewDomain }
+async function domainInfo ({ sld, ip = appConfig.namecheap.defaultIp }) {
+  const { data } = await base.get('/xml.response', {
+    params: {
+      Command: 'namecheap.domains.getinfo',
+      DomainName: `${sld}.${appConfig.tld}`,
+      ClientIp: ip
+    }
+  })
+  const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' })
+  const parsed = parser.parse(data).ApiResponse
+  const error = parsed?.Errors?.Error?.['#text']
+  const responseCode = parseInt(parsed?.Errors?.Error?.['@_Number'] || '0')
+  const isOwner = parsed?.CommandResponse?.DomainGetInfoResult?.['@_IsOwner'] === 'true'
+  const { CreatedDate, ExpiredDate } = parsed?.CommandResponse?.DomainGetInfoResult?.DomainDetails ?? {}
+  return { isOwner, createTime: new Date(CreatedDate).getTime(), expiryTime: new Date(ExpiredDate).getTime(), error, responseCode }
+}
+
+module.exports = { checkIsDomainAvailable, purchaseDomain, listOwnedDomains, renewDomain, domainInfo }

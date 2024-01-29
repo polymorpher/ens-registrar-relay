@@ -16,6 +16,8 @@ const { getCertificate, getCertificateMapEntry, parseCertId } = require('../src/
 const { schedule, lookup, lookupByJobId } = require('../src/cert-scheduler')
 const { nameUtils } = require('./util')
 const axios = require('axios')
+const { domainInfo, renewDomain } = require('../src/namecheap-api')
+const { Renewal } = require('../src/data/renewal')
 const limiter = (args) => rateLimit({
   windowMs: 1000 * 60,
   max: 60,
@@ -426,5 +428,62 @@ router.post('/renew-metadata',
     }
   }
 )
+
+router.post('/renew',
+  limiter(),
+  body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
+    }
+    const { domain, fast } = req.body
+    console.log('[/renew]', { domain, fast })
+    try {
+      const sld = domain.split('.')[0]
+      const expiry = await nameExpires(sld)
+      if (!(expiry > Date.now())) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          error: 'domain is expired on blockchain',
+          expiry
+        })
+      }
+      const { expiryTime, createTime, isOwner, error, responseCode: errorResponseCode } = await domainInfo({ sld })
+      if (!(expiry > expiryTime)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          error: 'domain expires first on blockchain. Must renew on-chain first to beyond web2 expiry time',
+          expiry,
+          web2Expiry: expiryTime
+        })
+      }
+      if (!isOwner) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          error: 'domain is not owned by dot-country'
+        })
+      }
+      if (error) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          error, errorResponseCode,
+        })
+      }
+      const { success, pricePaid, orderId, responseCode, error: responseText, traceId } = await renewDomain({ sld })
+      const p = await Renewal.addNew({
+        domain,
+        pricePaid,
+        orderId,
+        domainCreationTime: createTime,
+        domainExpiryTime: expiryTime,
+        duration: 1,
+        responseCode,
+        responseText,
+        traceId,
+      })
+      Logger.log('[/renew]', p)
+      res.json({ success, domainCreationTime: createTime, domainExpiryTime: expiryTime, duration: 1, responseText, traceId })
+    } catch (ex) {
+      console.error(ex)
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })
+    }
+  })
 
 module.exports = router

@@ -1,7 +1,6 @@
-const config = require('../config')
 const DomainList = process.env.DOMAIN_LIST ? JSON.parse(process.env.DOMAIN_LIST) : []
 const { listOwnedDomains, renewDomain } = require('../src/namecheap-api')
-
+const LookupOnly = !!process.env.LOOKUP_ONLY
 async function queryExpiredDomains () {
   let page = 0; let totalPages = 0; const pageSize = 100
   const allDomains = []
@@ -27,6 +26,8 @@ async function main () {
   console.log(domains)
   const premiumDomains = []
   const skippedDomains = []
+  const renewedDomains = []
+  const renewalErrorDomains = []
   for (const { name: domain, isPremium } of domains) {
     if (isPremium) {
       premiumDomains.push(domain)
@@ -34,22 +35,28 @@ async function main () {
       continue
     }
     const sld = domain.split('.')[0]
-    if (domain.startsWith('testtest') || domain.startsWith('franciscoe') || sld.length > 12) {
+    if (domain.startsWith('testtest') || domain.startsWith('francisco') || sld.length > 15) {
       skippedDomains.push(domain)
       console.log(`Skipping ${domain}`)
       continue
     }
 
-    const { success, pricePaid, orderId, responseCode, error } = await renewDomain({ sld })
-    if (!success) {
-      console.error(`Error renewing ${sld} (${domain}) code=${responseCode} error=${error}`)
-      continue
+    if (!LookupOnly) {
+      const { success, pricePaid, orderId, responseCode, error } = await renewDomain({ sld })
+      if (!success) {
+        console.error(`Error renewing ${sld} (${domain}) code=${responseCode} error=${error}`)
+        renewalErrorDomains.push(domain)
+        continue
+      }
+      console.log(`Renewed ${domain} success=${success} pricePaid=${pricePaid} orderId=${orderId}`)
+      await new Promise((resolve) => setTimeout(resolve, 5500))
     }
-    console.log(`Renewed ${domain} success=${success} pricePaid=${pricePaid} orderId=${orderId}`)
-    await new Promise((resolve) => setTimeout(resolve, 5500))
+    renewedDomains.push(domain)
   }
   console.log('Premium domains not renewed:', premiumDomains)
+  console.log('Renewed domains:', renewedDomains)
   console.log('Skipped regular domains:', skippedDomains)
+  console.log('Renewal error domains:', renewalErrorDomains)
 }
 
 main().catch(console.error)

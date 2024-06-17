@@ -1,11 +1,12 @@
 const DomainList = process.env.DOMAIN_LIST ? JSON.parse(process.env.DOMAIN_LIST) : []
 const { listOwnedDomains, renewDomain } = require('../src/namecheap-api')
 const LookupOnly = !!process.env.LOOKUP_ONLY
+const GRACE = !!process.env.GRACE
 async function queryExpiredDomains () {
   let page = 0; let totalPages = 0; const pageSize = 100
   const allDomains = []
   while (totalPages === 0 || page < totalPages) {
-    const { domains, totalItems } = await listOwnedDomains({ page, expiring: true })
+    const { domains, totalItems } = await listOwnedDomains({ page, expiring: true, grace: GRACE })
     if (totalPages === 0) {
       totalPages = Math.ceil(totalItems / pageSize)
     }

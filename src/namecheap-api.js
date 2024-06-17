@@ -126,11 +126,11 @@ const purchaseDomain = async ({ sld, ip = appConfig.namecheap.defaultIp }) => {
   return { success, pricePaid, orderId, responseCode, responseText: error, traceId }
 }
 
-async function listOwnedDomains ({ pageSize = 100, page = 0, expiring = false }) {
+async function listOwnedDomains ({ pageSize = 100, page = 0, expiring = false, grace = false }) {
   const { data } = await base.get('/xml.response', {
     params: {
       Command: 'namecheap.domains.getList',
-      ListType: expiring ? 'EXPIRING' : 'ALL',
+      ListType: grace ? 'EXPIRED' : (expiring ? 'EXPIRING' : 'ALL'),
       PageSize: pageSize,
       Page: page + 1,
     }

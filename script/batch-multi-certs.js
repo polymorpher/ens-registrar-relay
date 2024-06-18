@@ -12,7 +12,9 @@ const Excluded = process.env.EXCLUDED_DOMAINS
   ? JSON.parse(process.env.EXCLUDED_DOMAINS)
   : ['li', 'ml', 'ba', 'ec', 'au', 'ep', 'eu', 'un',
       '0', '00', '01', '02', '03', '04',
-      'h', '0', '1', 's'
+      'h', '0', '1', 's',
+      'j', 'g', 'm', 'r',
+      'af', 'ak', 'al', 'am', 'jn', 'rh', 'sa', 'tp', 'tf', 'ym'
     ]
 const GenerateWildcard = process.env.GENERATE_WILDCARD === '1' || process.env.GENERATE_WILDCARD === 'true'
 

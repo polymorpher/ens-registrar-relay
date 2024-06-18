@@ -53,10 +53,10 @@ async function main () {
     }
     renewedDomains.push(domain)
   }
-  console.log('Premium domains not renewed:', premiumDomains)
-  console.log('Renewed domains:', renewedDomains)
-  console.log('Skipped regular domains:', skippedDomains)
-  console.log('Renewal error domains:', renewalErrorDomains)
+  console.log('Premium domains not renewed:', JSON.stringify(premiumDomains, null, 2))
+  console.log('Renewed domains:', JSON.stringify(renewedDomains, null, 2))
+  console.log('Skipped regular domains:', JSON.stringify(skippedDomains, null, 2))
+  console.log('Renewal error domains:', JSON.stringify(renewalErrorDomains, null, 2))
 }
 
 main().catch(console.error)

@@ -48,7 +48,7 @@ async function schedule ({ sld, wc, renew = false }) {
     delayFirstAttempt: false,
     retry: async (e, attemptNumber) => {
       console.log(`[backOff][attempt=${attemptNumber}][domain=${domain}] error:`, e)
-      if (attemptNumber > 5) {
+      if (attemptNumber >= 5) {
         await CertJob.update(jobId, { error: e.toString(), completed: true })
         return false
       } else {

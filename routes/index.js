@@ -159,8 +159,8 @@ router.post('/renew-cert',
     if (!errors.isEmpty()) {
       return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
     }
-    const { domain, address, async } = req.body
-    console.log('[/renew-cert]', { domain, address })
+    const { domain, async } = req.body
+    console.log('[/renew-cert]', { domain })
     const sld = domain.split('.country')[0]
     const expires = await nameExpires(sld)
     const now = Date.now()

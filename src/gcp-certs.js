@@ -147,7 +147,7 @@ const deleteCertificateMapEntry = async ({ sld }) => {
   const mapEntryId = `${certMapId}/certificateMapEntries/${domainId}`
   const [op1] = await client.deleteCertificateMapEntry({ name: mapEntryId })
   const r1 = await op1.promise()
-  console.log(`Deleted ${mapEntryId}`, r1)
+  console.log(`Deleted ${mapEntryId}`, r1?.[1]?.done)
 }
 
 const deleteWcCertificateMapEntry = async ({ sld }) => {
@@ -157,7 +157,7 @@ const deleteWcCertificateMapEntry = async ({ sld }) => {
   const mapEntryWcId = `${certMapId}/certificateMapEntries/wc-${domainId}`
   const [op2] = await client.deleteCertificateMapEntry({ name: mapEntryWcId })
   const r2 = await op2.promise()
-  console.log(`Deleted ${mapEntryWcId}`, r2)
+  console.log(`Deleted ${mapEntryWcId}`, r2?.[1]?.done)
 }
 const deleteCertificate = async ({ sld, suffix }) => {
   const domain = `${sld}.${config.tld}`

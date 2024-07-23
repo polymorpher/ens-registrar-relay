@@ -18,6 +18,8 @@ const Excluded = process.env.EXCLUDED_DOMAINS
     ]
 const GenerateWildcard = process.env.GENERATE_WILDCARD === '1' || process.env.GENERATE_WILDCARD === 'true'
 
+const AssignedSlds = JSON.parse(process.env.SLDS ?? '[]')
+
 async function batchGenerate ({ slds, id }) {
   console.log(`generating certs for ${slds.length} slds: ${JSON.stringify(slds)}`)
   // const finalSlds = []
@@ -58,17 +60,23 @@ async function batchGenerate ({ slds, id }) {
 }
 
 async function main () {
-  for (let i = 97; i <= 122; i += 1) {
-    chars.push(String.fromCharCode(i))
+  const domains = []
+  if (AssignedSlds.length > 0) {
+    domains.push(...AssignedSlds)
+  } else {
+    for (let i = 97; i <= 122; i += 1) {
+      chars.push(String.fromCharCode(i))
+    }
+    for (let i = 48; i <= 57; i += 1) {
+      chars.push(String.fromCharCode(i))
+    }
+    const all2chars = chars.map(c1 => chars.map(c2 => `${c1}${c2}`)).flat()
+    const filtered2chars = all2chars.filter(e => !Excluded.includes(e))
+    const filtered1char = chars.filter(e => !Excluded.includes(e))
+    domains.push(...filtered1char, ...filtered2chars)
+    // await batchGenerate({ slds: filtered2chars, id: 'all-2-chars-20230119' })
   }
-  for (let i = 48; i <= 57; i += 1) {
-    chars.push(String.fromCharCode(i))
-  }
-  const all2chars = chars.map(c1 => chars.map(c2 => `${c1}${c2}`)).flat()
-  const filtered2chars = all2chars.filter(e => !Excluded.includes(e))
-  const filtered1char = chars.filter(e => !Excluded.includes(e))
-  // await batchGenerate({ slds: filtered2chars, id: 'all-2-chars-20230119' })
-  await batchGenerate({ slds: [...filtered1char, ...filtered2chars], id: CertIdPrefix })
+  await batchGenerate({ slds: domains, id: CertIdPrefix })
 }
 
 main().catch(console.error)

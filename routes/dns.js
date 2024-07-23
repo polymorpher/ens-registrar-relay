@@ -197,6 +197,7 @@ router.post('/redirect',
       } else {
         record.a = [{ ttl: 300, ip: config.redirect.serverIp }]
       }
+      delete record.cname
       await redisClient.hSet(`${domain}.`, subdomain, JSON.stringify(record))
 
       let rrResponse

@@ -99,11 +99,15 @@ const DNSChallenger = () => {
       console.log(`Creating DNS challenge for ${authz.identifier.value}`)
       const zone = `${authz.identifier.value}.`
       const key = '_acme-challenge'
+
       return m.runExclusive(async () => {
         const record = JSON.parse(await redisClient.hGet(zone, key) || '{}')
         const newRecord = { ...record, txt: [...(record?.txt || []), { text: keyAuthorization, ttl: 300 }] }
         const rs = await redisClient.hSet(zone, key, JSON.stringify(newRecord))
         console.log(`[DNS challenge record created] Redis response: ${rs}; old record: ${JSON.stringify(record)}; new record: ${JSON.stringify(newRecord)}`)
+        // console.log('Waiting for 60s...')
+        // await new Promise((resolve, reject) => setTimeout(async () => { resolve() }, 60000))
+        // console.log('Done')
       })
     },
     challengeRemoveFn: async (authz, challenge, keyAuthorization) => {

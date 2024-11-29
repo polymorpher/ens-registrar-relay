@@ -11,9 +11,6 @@ backup.eslintrc.js
 /build.sh
 /deploy.sh
 node_modules
-.env
-.env.*
-!.env.example
 
 .DS_Store
 
@@ -38,3 +35,8 @@ node_modules
 dump.csv
 
 batch-multi-certs.log
+
+.env
+.env.*
+!.env.example
+!.env.example.*

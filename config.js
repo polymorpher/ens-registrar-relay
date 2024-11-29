@@ -1,4 +1,6 @@
 require('dotenv').config()
+require('dotenv').config({ path: '.env.app' })
+
 const DEBUG = process.env.BACKEND_DEBUG === 'true' || process.env.BACKEND_DEBUG === '1'
 const config = {
   debug: DEBUG,
@@ -104,6 +106,12 @@ const config = {
   redirect: {
     redisUrl: process.env.REDIRECT_REDIS_URL ?? '',
     serverIp: process.env.REDIRECT_SERVER_IP ?? '',
+  },
+  app: {
+    otc: {
+      contract: process.env.OTC_CONTRACT ?? '',
+      frontendServerIp: process.env.OTC_FRONTEND_SERVER_IP ?? '',
+    }
   }
 }
 module.exports = config

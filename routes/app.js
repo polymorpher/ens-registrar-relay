@@ -6,7 +6,7 @@ const rateLimit = require('express-rate-limit')
 const { body, validationResult } = require('express-validator')
 const appConfig = require('../config')
 const { nameExpires } = require('../src/w3utils')
-const { isOtcEnabled, enableOtc } = require('../src/app/otc')
+const { isOtcEnabled, enableOtc, checkOfferCreatedEvent } = require('../src/app/otc')
 
 const limiter = (args) => rateLimit({
   windowMs: 1000 * 60,
@@ -18,12 +18,13 @@ const limiter = (args) => rateLimit({
 router.post('/otc',
   limiter(),
   body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
+  body('txHash').isLength({ min: 66, max: 66 }).trim().matches(/0x[a-fA-F0-9]+/),
   async (req, res) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
       return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
     }
-    const { domain } = req.body
+    const { domain, txHash } = req.body
     Logger.log('[/app/otc]', { domain })
     try {
       const name = domain.split('.country')[0]
@@ -34,6 +35,10 @@ router.post('/otc',
       }
       if (await isOtcEnabled({ sld })) {
         return res.status(StatusCodes.BAD_REQUEST).json({ error: 'mail already enabled', domain })
+      }
+      const proceed = await checkOfferCreatedEvent({ txHash, domain, res })
+      if (!proceed) {
+        return
       }
       await enableOtc({ sld })
       res.json({ success: true })
@@ -49,4 +54,3 @@ router.post('/otc',
 )
 
 module.exports = router
-

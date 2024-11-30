@@ -168,4 +168,4 @@ const getOwner = async (sld) => {
   }
 }
 
-module.exports = { utils, getOwner, getDomainRegistrationEvent, parseNameRegistrationLog, parseNameRegistrationData, TOPIC_NAME_REGISTRATION, nameExpires, getSubdomains }
+module.exports = { web3, utils, getOwner, getDomainRegistrationEvent, parseNameRegistrationLog, parseNameRegistrationData, TOPIC_NAME_REGISTRATION, nameExpires, getSubdomains }

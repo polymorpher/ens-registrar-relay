@@ -6,9 +6,12 @@ async function queryExpiredDomains () {
   let page = 0; let totalPages = 0; const pageSize = 100
   const allDomains = []
   while (totalPages === 0 || page < totalPages) {
-    const { domains, totalItems } = await listOwnedDomains({ page, expiring: true, grace: GRACE })
+    const { domains, totalItems, error } = await listOwnedDomains({ page, expiring: true, grace: GRACE })
     if (totalPages === 0) {
       totalPages = Math.ceil(totalItems / pageSize)
+    }
+    if (error) {
+      console.error('ERROR:', error)
     }
     console.log(`Page ${page}, got ${domains.length} results`)
     console.log(JSON.stringify(domains.map(e => e.name)))

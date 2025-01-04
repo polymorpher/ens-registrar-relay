@@ -82,8 +82,8 @@ async function main () {
     const all2chars = chars.map(c1 => chars.map(c2 => `${c1}${c2}`)).flat()
     const filtered2chars = all2chars.filter(e => !Excluded.includes(e))
     const filtered1char = chars.filter(e => !Excluded.includes(e))
-    // domains.push(...filtered1char, ...filtered2chars)
-    domains.push(...filtered1char)
+    domains.push(...filtered1char, ...filtered2chars)
+    // domains.push(...filtered1char)
     // await batchGenerate({ slds: filtered2chars, id: 'all-2-chars-20230119' })
   }
   await batchGenerate({ slds: domains, id: CertIdPrefix })

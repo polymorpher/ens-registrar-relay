@@ -11,19 +11,19 @@ const ValidARecords = JSON.parse(process.env.VALID_A_RECORDS ?? '["34.160.72.19"
 const Excluded = process.env.EXCLUDED_DOMAINS
   ? JSON.parse(process.env.EXCLUDED_DOMAINS)
   : ['li', 'ml', 'ba', 'ec', 'au', 'ep', 'eu', 'un',
-      '0', '00', '01', '02', '03', '04',
-      'h', '0', '1', 's',
-      'j', 'g', 'm', 'r',
-      'i', 'q', '9',
-      'af', 'ak', 'al', 'am', 'jn', 'rh', 'sa', 'tp', 'tf', 'ym'
-    ]
+    '0', '00', '01', '02', '03', '04',
+    'h', '0', '1', 's',
+    'j', 'g', 'm', 'r',
+    'i', 'q', '9',
+    'af', 'ak', 'al', 'am', 'jn', 'rh', 'sa', 'tp', 'tf', 'ym'
+  ]
 const ForceIncludeList = JSON.parse(process.env.FORCE_INCLUDE_LIST ?? '[]')
 
 const GenerateWildcard = process.env.GENERATE_WILDCARD === '1' || process.env.GENERATE_WILDCARD === 'true'
 
 const AssignedSlds = JSON.parse(process.env.SLDS ?? '[]')
 
-async function batchGenerate ({ slds, id }) {
+async function batchGenerate({ slds, id }) {
   console.log(`generating certs for ${slds.length} slds: ${JSON.stringify(slds)}`)
   // const finalSlds = []
   // for (const chunk of lodash.chunk(slds, 150)) {
@@ -35,12 +35,16 @@ async function batchGenerate ({ slds, id }) {
   //   await sleep(60)
   // }
   const badDomains = []
-  const filteredSlds = await gcp.filterSldsWithoutCert({ slds, checkWc: false, checkExpiry: true })
+  // const filteredSlds = await gcp.filterSldsWithoutCert({ slds, checkWc: false, checkExpiry: true })
+  const filteredSlds = slds
   console.log(`filteredSlds: ${filteredSlds.length}`)
   const finalSlds = []
   for (const chunk of lodash.chunk(filteredSlds, 50)) {
     const answers = await Promise.all(chunk.map(sld => dig([`${sld}.${config.tld}`, 'A'])))
-    const filteredChunk = answers.filter(e => ForceIncludeList.includes(e.answer[0].domain.split('.')[0]) || ValidARecords.includes(e?.answer?.[0]?.value))
+    const nonExisting = answers.filter(e => !(e?.answer?.length))
+    console.log('nonExisting:', nonExisting.map(e => e.question[0].name))
+    const existing = answers.filter(e => e?.answer?.length > 0)
+    const filteredChunk = existing.filter(e => ForceIncludeList.includes(e.answer[0].domain.split('.')[0]) || ValidARecords.includes(e?.answer?.[0]?.value))
       .map(e => e.answer[0].domain.split('.')[0])
     const badChunk = lodash.difference(chunk, filteredChunk)
     badDomains.push(...badChunk)
@@ -68,7 +72,7 @@ async function batchGenerate ({ slds, id }) {
   }
 }
 
-async function main () {
+async function main() {
   const domains = []
   if (AssignedSlds.length > 0) {
     domains.push(...AssignedSlds)

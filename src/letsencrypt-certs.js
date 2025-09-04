@@ -132,7 +132,7 @@ const DNSChallenger = () => {
     }
   }
 }
-async function reloadDnsZone ({ domain }) {
+async function reloadDnsZone({ domain }) {
   try {
     const { data: { loaded, success } } = await dnsApiBase.get('/reload', { params: { zone: `${domain}.` } })
     console.log('CoreDNS-Redis server response:', { loaded, success })
@@ -141,7 +141,7 @@ async function reloadDnsZone ({ domain }) {
   }
 }
 
-async function setInitialDNS ({ domain }) {
+async function setInitialDNS({ domain }) {
   // set up CAA and other essential records first, before asking letsencrypt to challenge us and issue certificate
   // CAA is critical because letsencrypt will check that first
   const rs = await redisClient.hSet(`${domain}.`, '@', JSON.stringify({
@@ -153,7 +153,7 @@ async function setInitialDNS ({ domain }) {
   await reloadDnsZone({ domain })
 }
 
-async function buildClient ({ staging = false }) {
+async function buildClient({ staging = false }) {
   let accountKey
   if (config.acmeKeyFile) {
     const key = await fs.readFile(config.acmeKeyFile, { encoding: 'utf-8' })
@@ -166,6 +166,7 @@ async function buildClient ({ staging = false }) {
 }
 
 const logGcpError = (ex, prefix = '[error]') => {
+  console.trace(ex)
   if (ex.statusDetails) {
     for (let i = 0; i < ex.statusDetails.length; i++) {
       console.error(prefix, i, ex.statusDetails[i])
@@ -213,7 +214,7 @@ const makeMultiCert = async ({ client, domains, wc = true }) => {
   return makeCertCore({ client, csrOptions, useHttp: !wc })
 }
 
-async function createNewCertificate ({ sld, staging = false, wcOnly = false, nakedOnly = false }) {
+async function createNewCertificate({ sld, staging = false, wcOnly = false, nakedOnly = false }) {
   if (nakedOnly && wcOnly) {
     throw new Error('wcOnly and nakedOnly cannot both be true')
   }
@@ -243,7 +244,7 @@ async function createNewCertificate ({ sld, staging = false, wcOnly = false, nak
   }
 }
 
-async function createNewMultiCertificate ({ id, slds, staging = false, mapEntryWaitPeriod = 0, skipInitDns = false, wc = true }) {
+async function createNewMultiCertificate({ id, slds, staging = false, mapEntryWaitPeriod = 0, skipInitDns = false, wc = true }) {
   const existingCert = await getCertificate({ idOverride: id })
   const domains = slds.map(sld => `${sld}.${config.tld}`)
   let csr, cert, key, certId
@@ -293,7 +294,7 @@ async function createNewMultiCertificate ({ id, slds, staging = false, mapEntryW
 
 const makeTimeBasedSuffix = () => new Date().toISOString().slice(0, 19).replaceAll(':', '-').toLowerCase()
 
-async function renewCertificate ({ sld, staging = false, wcOnly = false, nakedOnly = false }) {
+async function renewCertificate({ sld, staging = false, wcOnly = false, nakedOnly = false }) {
   if (nakedOnly && wcOnly) {
     throw new Error('wcOnly and nakedOnly cannot both be true')
   }
@@ -303,10 +304,20 @@ async function renewCertificate ({ sld, staging = false, wcOnly = false, nakedOn
   try {
     const certId = await createSelfManagedCertificate({ domain, cert, key, suffix: makeTimeBasedSuffix() })
     if (!wcOnly) {
-      await deleteCertificateMapEntry({ sld })
+      const existingEntry = getCertificateMapEntry({ sld })
+      if (existingEntry) {
+        await deleteCertificateMapEntry({ sld })
+      } else {
+        console.log(`[renewCertificate] WARNING: no existing entry for ${sld}. Skipped deletion`)
+      }
     }
     if (!nakedOnly) {
-      await deleteWcCertificateMapEntry({ sld })
+      const existingEntry = getCertificateMapEntry({ sld, wc: true })
+      if (existingEntry) {
+        await deleteWcCertificateMapEntry({ sld })
+      } else {
+        console.log(`[renewCertificate] WARNING: no existing WC entry for ${sld}. Skipped deletion`)
+      }
     }
     let certMapId
     if (!wcOnly) {

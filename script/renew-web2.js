@@ -29,7 +29,15 @@ async function main () {
   const skippedDomains = []
   const renewedDomains = []
   const renewalErrorDomains = []
-  for (const { name: domain, isPremium } of domains) {
+  for (const domainElement of domains) {
+    let domain = ''
+    let isPremium = false
+    if (typeof domainElement === 'string') {
+      domain = domainElement
+    } else {
+      domain = domainElement.domain
+      isPremium = domainElement.isPremium
+    }
     if (isPremium) {
       premiumDomains.push(domain)
       console.log(`Skipping premium domain: ${domain}`)
@@ -43,9 +51,9 @@ async function main () {
     }
 
     if (!LookupOnly) {
-      const { success, pricePaid, orderId, responseCode, error } = await renewDomain({ sld })
+      const { success, pricePaid, orderId, responseCode, error, responseText } = await renewDomain({ sld })
       if (!success) {
-        console.error(`Error renewing ${sld} (${domain}) code=${responseCode} error=${error}`)
+        console.error(`Error renewing ${sld} (${domain}) code=${responseCode} error=${error} responseText=${responseText}`)
         renewalErrorDomains.push(domain)
         continue
       }

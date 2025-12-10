@@ -188,7 +188,7 @@ async function renewDomain ({ sld, ip = appConfig.namecheap.defaultIp }) {
   } = result || {}
   const pricePaid = parseFloat(chargedAmount || '0')
   const success = renewed === 'true'
-  console.log('[namecheap][renew]', sld, { success, pricePaid, orderId })
+  console.log('[namecheap][renew]', sld, { success, pricePaid, orderId }, 'Error: ', error, '| Details:', JSON.stringify(parsed))
   return { success, pricePaid, orderId, responseCode, responseText: error, traceId }
 }
 

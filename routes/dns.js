@@ -158,6 +158,10 @@ router.post('/redirect',
   body('target').trim().custom((input) => {
     try {
       // eslint-disable-next-line no-new
+      if (input === '!') {
+        return true
+      }
+      // eslint-disable-next-line no-new
       new URL(input)
       return true
     } catch (ex) {
@@ -172,6 +176,9 @@ router.post('/redirect',
       return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
     }
     const { domain, signature, subdomain, path, deadline, target, deleteRecord } = req.body
+    if (target === '!' && !deleteRecord) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ error: 'target ! can only be used to delete record' })
+    }
     console.log('[/redirect]', { domain, signature, subdomain, path, deadline, target, deleteRecord })
     try {
       const sld = domain.split('.country')[0]
@@ -188,9 +195,9 @@ router.post('/redirect',
       }
       const record = JSON.parse(await redisClient.hGet(`${domain}.`, subdomain) ?? '{}')
       if (subdomain === '@' && deleteRecord) {
+        console.log('[/redirect]', `resetting A record for @ for domain ${domain}`)
         record.a = [{ ttl: 300, ip: config.dns.ip }]
-      }
-      if (subdomain === 'mail' && deleteRecord) {
+      } else if (subdomain === 'mail' && deleteRecord) {
         record.a = [{ ttl: 300, ip: config.easIp }]
       } else if (deleteRecord) {
         delete record.a
@@ -198,7 +205,11 @@ router.post('/redirect',
         record.a = [{ ttl: 300, ip: config.redirect.serverIp }]
       }
       delete record.cname
-      await redisClient.hSet(`${domain}.`, subdomain, JSON.stringify(record))
+      if (Object.keys(record).length === 0) {
+        await redisClient.hDel(`${domain}.`, subdomain)
+      } else {
+        await redisClient.hSet(`${domain}.`, subdomain, JSON.stringify(record))
+      }
 
       let rrResponse
       if (deleteRecord) {

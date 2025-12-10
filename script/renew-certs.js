@@ -2,6 +2,7 @@ const gcp = require('../src/gcp-certs')
 const le = require('../src/letsencrypt-certs')
 const { nameExpires } = require('../src/w3utils')
 const SLD_LIST = JSON.parse(process.env.SLD_LIST || '[]')
+const FORCE = !!process.env.FORCE
 const getDomainFromDNSNames = ({ dnsNames }) => {
   const t = dnsNames.filter(d => !d.includes('*'))
   if (t.length >= 1) {
@@ -30,7 +31,7 @@ async function main () {
   const now = Date.now()
   for (const [sld, certExpires] of slds) {
     const expires = await nameExpires(sld)
-    if (expires > now && expires > certExpires + 3600 * 24 * 1000 * 7) {
+    if (FORCE || (expires > now && expires > certExpires + 3600 * 24 * 1000 * 7)) {
       // should renew cert
       try {
         const { certId, certMapId } = await le.renewCertificate({ sld })

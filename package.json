@@ -85,7 +85,8 @@
     "eslint-plugin-standard": "^5.0.0"
   },
   "resolutions": {
-    "tar": ">=4.4.15"
+    "tar": ">=4.4.15",
+    "jwa": "^2.0.1"
   },
   "eslintConfig": {
     "env": {

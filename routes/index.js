@@ -238,9 +238,11 @@ router.post('/purchase',
           reqTime
         } = await domainApiProvider.purchaseDomain({ sld: name, ip }))
         if (!success) {
+          console.error('[/purchase][registrar-failure]', { domain: name, responseCode, responseText })
           return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
             error: 'purchase failed',
             domain: name,
+            responseCode,
             responseText
           })
         }
@@ -249,7 +251,7 @@ router.post('/purchase',
       if (!fast) {
         ({ certId, certMapId, dnsAuthId } = await createNewCertificate({ sld: name }))
       }
-      const p = await Purchase.addNew({
+      const p = await Purchase.upsertNew({
         domain,
         address,
         reserved,
@@ -279,28 +281,37 @@ router.post('/purchase',
 
 if (appConfig.allowAdminOverride) {
   router.post('/purchase-mock', async (req, res) => {
-    const ip = undefined // requestIp.getClientIp(req)
     const { domain, address } = req.body
-    const name = domain.split('.')[0]
-    const { success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime } =
-      await domainApiProvider.purchaseDomain({ sld: name, ip })
-    const p = await Purchase.addNew({
-      domain,
-      address,
-      pricePaid,
-      orderId,
-      domainCreationDate,
-      domainExpiryDate,
-      responseCode,
-      responseText,
-      traceId,
-      reqTime
-    })
-    Logger.log('[/purchase]', p)
-    if (!success) {
-      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'purchase failed', domain: name, responseText })
+    if (!domain || !address) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ error: 'missing fields', domain, address })
     }
-    res.json({ success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime })
+    const name = domain.split('.')[0]
+    const ip = undefined // requestIp.getClientIp(req)
+    try {
+      const { success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime } =
+        await domainApiProvider.purchaseDomain({ sld: name, ip })
+      if (!success) {
+        console.error('[/purchase-mock][registrar-failure]', { domain: name, responseCode, responseText })
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'purchase failed', domain: name, responseCode, responseText })
+      }
+      const p = await Purchase.upsertNew({
+        domain,
+        address,
+        pricePaid,
+        orderId,
+        domainCreationDate,
+        domainExpiryDate,
+        responseCode,
+        responseText,
+        traceId,
+        reqTime
+      })
+      Logger.log('[/purchase]', p)
+      res.json({ success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime })
+    } catch (ex) {
+      console.error(ex)
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })
+    }
   })
 }
 

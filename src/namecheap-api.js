@@ -5,7 +5,7 @@ const NodeCache = require('node-cache')
 const cache = new NodeCache({ stdTTL: 600 })
 
 const base = axios.create({
-  baseURL: appConfig.enom.test ? 'https://api.sandbox.namecheap.com' : 'https://api.namecheap.com'
+  baseURL: appConfig.namecheap.test ? 'https://api.sandbox.namecheap.com' : 'https://api.namecheap.com'
 })
 
 base.interceptors.request.use((config) => {
@@ -122,8 +122,14 @@ const purchaseDomain = async ({ sld, ip = appConfig.namecheap.defaultIp }) => {
   } = result || {}
   const pricePaid = parseFloat(chargedAmount || '0')
   const success = registered === 'true'
-  console.log('[namecheap][purchase]', sld, { success, pricePaid, orderId })
-  return { success, pricePaid, orderId, responseCode, responseText: error, traceId }
+  const responseText = error
+  const summary = { success, pricePaid, orderId, responseCode, responseText }
+  if (!success) {
+    console.error('[namecheap][purchase][error]', sld, summary)
+  } else {
+    console.log('[namecheap][purchase]', sld, summary)
+  }
+  return { ...summary, traceId }
 }
 
 async function listOwnedDomains ({ pageSize = 100, page = 0, expiring = false, grace = false }) {

@@ -1,22 +1,22 @@
 const { GenericBuilder } = require('./generic')
 const RenewalPrototype = GenericBuilder('renewal')
+const renewalDetails = ({
+  pricePaid, orderId, domainCreationTime, domainExpiryTime, duration, responseCode, responseText, traceId
+}) => ({
+  pricePaid,
+  orderId,
+  domainCreationTime,
+  domainExpiryTime,
+  duration,
+  responseCode,
+  responseText,
+  traceId,
+})
+
 const Renewal = ({
   ...RenewalPrototype,
-  addNew: async ({
-    domain, pricePaid, orderId, domainCreationTime, domainExpiryTime, duration, responseCode, responseText, traceId
-  }) => {
-    const details = {
-      pricePaid,
-      orderId,
-      domainCreationTime,
-      domainExpiryTime,
-      duration,
-      responseCode,
-      responseText,
-      traceId,
-    }
-    return Renewal.add(domain, details)
-  }
+  addNew: async ({ domain, ...rest }) => RenewalPrototype.add(domain, renewalDetails(rest)),
+  upsertNew: async ({ domain, ...rest }) => RenewalPrototype.upsert(domain, renewalDetails(rest))
 })
 
 module.exports = { Renewal }

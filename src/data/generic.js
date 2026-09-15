@@ -62,11 +62,12 @@ const GenericBuilder = (inKind) => {
     }
     const timestamp = Date.now()
     const key = ds.key([kind, id])
+    // Datastore rejects `undefined` property values outright, whereas `update` already drops them via mergeNonEmpty
     const data = {
       creationTime: timestamp,
       timeUpdated: timestamp,
       id,
-      ...details
+      ..._.omitBy(details, _.isUndefined)
     }
     return new Promise((resolve, reject) => {
       ds.insert({ key, data }, err => err ? reject(err) : resolve(data))
@@ -135,10 +136,12 @@ const GenericBuilder = (inKind) => {
       return null
     }
     let newData = override ? details : mergeNonEmpty(install, details)
-    newData = _.omit(newData, [ds.KEY])
+    // mergeNonEmpty still yields `undefined` for keys absent from the stored entity; Datastore rejects those
+    newData = _.omitBy(_.omit(newData, [ds.KEY]), _.isUndefined)
     newData = _.assign({}, newData, { timeUpdated: Date.now() })
     const key = install[ds.KEY]
-    return new Promise(async (resolve, reject) => {
+    // Executor must not be async: a synchronous throw from ds.update would otherwise escape as an unhandled rejection
+    return new Promise((resolve, reject) => {
       ds.update({ key, data: newData }, err => err ? reject(err) : resolve(newData))
     })
   }
@@ -148,7 +151,7 @@ const GenericBuilder = (inKind) => {
       return null
     }
     const key = install[ds.KEY]
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       ds.delete(key, err => err ? reject(err) : resolve(install))
     })
   }

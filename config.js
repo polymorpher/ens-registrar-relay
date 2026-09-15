@@ -2,6 +2,19 @@ require('dotenv').config()
 require('dotenv').config({ path: '.env.app' })
 
 const DEBUG = process.env.BACKEND_DEBUG === 'true' || process.env.BACKEND_DEBUG === '1'
+
+// A non-array here would make `.includes`/`.some` checks silently mean something else, so fail fast at startup
+const parseAdminDomainApiKeys = (raw) => {
+  if (!raw) {
+    return []
+  }
+  const parsed = JSON.parse(raw)
+  if (!Array.isArray(parsed) || parsed.some(k => typeof k !== 'string' || k.length === 0)) {
+    throw new Error('ADMIN_DOMAIN_API_KEYS must be a JSON list of non-empty strings')
+  }
+  return parsed
+}
+
 const config = {
   debug: DEBUG,
   provider: process.env.PROVIDER,
@@ -13,6 +26,7 @@ const config = {
   easIp: process.env.DEFAULT_MAIL_IP,
   tld: process.env.TLD || 'country',
   allowAdminOverride: process.env.ALLOW_ADMIN_OVERRIDE === 'true',
+  adminDomainApiKeys: parseAdminDomainApiKeys(process.env.ADMIN_DOMAIN_API_KEYS),
   registrarProvider: process.env.REGISTRAR_PROVIDER,
   acmeKeyFile: process.env.ACME_KEY_FILE,
   enom: {

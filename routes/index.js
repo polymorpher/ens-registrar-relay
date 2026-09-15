@@ -1,5 +1,6 @@
 const express = require('express')
 const router = express.Router()
+const crypto = require('crypto')
 const { StatusCodes } = require('http-status-codes')
 const { Logger } = require('../logger')
 const { body, validationResult } = require('express-validator')
@@ -24,6 +25,26 @@ const limiter = (args) => rateLimit({
   keyGenerator: req => req.fingerprint?.hash || '',
   ...args,
 })
+
+const safeEqual = (a, b) => {
+  const ba = Buffer.from(String(a))
+  const bb = Buffer.from(String(b))
+  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb)
+}
+
+// Accepts `Authorization: Bearer <key>` or a bare `Authorization: <key>`
+const requireAdminApiKey = (req, res, next) => {
+  const keys = appConfig.adminDomainApiKeys
+  if (keys.length === 0) {
+    console.error('[admin] request rejected: ADMIN_DOMAIN_API_KEYS is not configured')
+    return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'unauthorized' })
+  }
+  const key = (req.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
+  if (!key || !keys.some(k => safeEqual(k, key))) {
+    return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'unauthorized' })
+  }
+  next()
+}
 
 router.get('/health', async (req, res) => {
   Logger.log('[/health]', req.fingerprint)
@@ -194,6 +215,76 @@ router.post('/renew-cert',
 )
 // very primitive locking mechanism
 const purchasePending = {}
+
+// Registrar purchase, certificate issuance and record keeping. Contains no blockchain interaction, so it is shared by
+// /purchase (which verifies the on-chain registration event first) and /admin/purchase (which does not).
+const executePurchase = async ({ domain, name, address, fast, res, tag }) => {
+  if (purchasePending[domain]) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      error: 'another purchase is pending'
+    })
+  }
+  const rid = uuid()
+  purchasePending[domain] = rid
+  try {
+    const ip = undefined // requestIp.getClientIp(req)
+    let success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime
+    const reserved = nameUtils.isReservedName(name)
+    if (!reserved) {
+      const { isAvailable, ...checkResponseArgs } = await domainApiProvider.checkIsDomainAvailable({ sld: name })
+      if (!isAvailable) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain not available', ...checkResponseArgs })
+      }
+      ({
+        success,
+        pricePaid,
+        orderId,
+        domainCreationDate,
+        domainExpiryDate,
+        responseCode,
+        responseText,
+        traceId,
+        reqTime
+      } = await domainApiProvider.purchaseDomain({ sld: name, ip }))
+      if (!success) {
+        console.error(`[${tag}][registrar-failure]`, { domain: name, responseCode, responseText })
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+          error: 'purchase failed',
+          domain: name,
+          responseCode,
+          responseText
+        })
+      }
+    }
+    let certId, certMapId, dnsAuthId
+    if (!fast) {
+      ({ certId, certMapId, dnsAuthId } = await createNewCertificate({ sld: name }))
+    }
+    const p = await Purchase.upsertNew({
+      domain,
+      address,
+      reserved,
+      pricePaid,
+      orderId,
+      domainCreationDate,
+      domainExpiryDate,
+      responseCode,
+      responseText,
+      traceId,
+      reqTime,
+      certId,
+      certMapId,
+      dnsAuthId
+    })
+    Logger.log(`[${tag}]`, p)
+    res.json({ success, domainCreationDate, domainExpiryDate, responseText, traceId, reqTime })
+  } finally {
+    if (purchasePending[domain] === rid) {
+      delete purchasePending[domain]
+    }
+  }
+}
+
 router.post('/purchase',
   limiter(),
   body('txHash').isLength({ min: 66, max: 66 }).trim().matches(/0x[a-fA-F0-9]+/),
@@ -206,76 +297,37 @@ router.post('/purchase',
     }
     const { txHash, domain, address, fast } = req.body
     console.log('[/purchase]', { txHash, domain, address, fast })
-    const rid = uuid()
     try {
       const { name } = await checkEvent({ txHash, domain, address, res })
       if (!name) {
         return
       }
-      const ip = undefined // requestIp.getClientIp(req)
-      if (purchasePending[domain]) {
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          error: 'another purchase is pending'
-        })
-      }
-      purchasePending[domain] = rid
-      let success, pricePaid, orderId, domainCreationDate, domainExpiryDate, responseCode, responseText, traceId, reqTime
-      const reserved = nameUtils.isReservedName(name)
-      if (!reserved) {
-        const { isAvailable, ...checkResponseArgs } = await domainApiProvider.checkIsDomainAvailable({ sld: name })
-        if (!isAvailable) {
-          return res.status(StatusCodes.BAD_REQUEST).json({ error: 'domain not available', ...checkResponseArgs })
-        }
-        ({
-          success,
-          pricePaid,
-          orderId,
-          domainCreationDate,
-          domainExpiryDate,
-          responseCode,
-          responseText,
-          traceId,
-          reqTime
-        } = await domainApiProvider.purchaseDomain({ sld: name, ip }))
-        if (!success) {
-          console.error('[/purchase][registrar-failure]', { domain: name, responseCode, responseText })
-          return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-            error: 'purchase failed',
-            domain: name,
-            responseCode,
-            responseText
-          })
-        }
-      }
-      let certId, certMapId, dnsAuthId
-      if (!fast) {
-        ({ certId, certMapId, dnsAuthId } = await createNewCertificate({ sld: name }))
-      }
-      const p = await Purchase.upsertNew({
-        domain,
-        address,
-        reserved,
-        pricePaid,
-        orderId,
-        domainCreationDate,
-        domainExpiryDate,
-        responseCode,
-        responseText,
-        traceId,
-        reqTime,
-        certId,
-        certMapId,
-        dnsAuthId
-      })
-      Logger.log('[/purchase]', p)
-      res.json({ success, domainCreationDate, domainExpiryDate, responseText, traceId, reqTime })
+      await executePurchase({ domain, name, address, fast, res, tag: '/purchase' })
     } catch (ex) {
       console.error(ex)
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })
-    } finally {
-      if (purchasePending[domain] === rid) {
-        delete purchasePending[domain]
-      }
+    }
+  })
+
+// Force-registers a domain at the registrar without any blockchain verification. Requires an admin API key.
+router.post('/admin/purchase',
+  limiter(),
+  requireAdminApiKey,
+  body('domain').isLength({ min: 1, max: 32 }).trim().matches(`^[a-z0-9-]+\\.${appConfig.tld}$`),
+  body('address').optional({ nullable: true, checkFalsy: true }).isLength({ min: 42, max: 42 }).trim().matches(/^0x[a-fA-F0-9]+$/),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
+    }
+    const { domain, address, fast } = req.body
+    console.log('[/admin/purchase]', { domain, address, fast })
+    try {
+      const name = domain.split('.')[0]
+      await executePurchase({ domain, name, address: address || undefined, fast, res, tag: '/admin/purchase' })
+    } catch (ex) {
+      console.error(ex)
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })
     }
   })
 
@@ -440,6 +492,36 @@ router.post('/renew-metadata',
   }
 )
 
+// Registrar renewal and record keeping, given the registrar's current info for the domain. Contains no blockchain
+// interaction, so it is shared by /renew (which checks on-chain expiry first) and /admin/renew (which does not).
+const executeRenewal = async ({ domain, sld, info, res, tag }) => {
+  const { expiryTime, createTime, isOwner, error, responseCode: errorResponseCode } = info
+  if (!isOwner) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      error: 'domain is not owned by dot-country'
+    })
+  }
+  if (error) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      error, errorResponseCode,
+    })
+  }
+  const { success, pricePaid, orderId, responseCode, responseText, traceId } = await renewDomain({ sld })
+  const p = await Renewal.upsertNew({
+    domain,
+    pricePaid,
+    orderId,
+    domainCreationTime: createTime,
+    domainExpiryTime: expiryTime,
+    duration: 1,
+    responseCode,
+    responseText,
+    traceId,
+  })
+  Logger.log(`[${tag}]`, p)
+  res.json({ success, domainCreationTime: createTime, domainExpiryTime: expiryTime, duration: 1, responseText, traceId })
+}
+
 router.post('/renew',
   limiter(),
   body('domain').isLength({ min: 1, max: 32 }).trim().matches(`[a-z0-9-]+\\.${appConfig.tld}$`),
@@ -459,38 +541,37 @@ router.post('/renew',
           expiry
         })
       }
-      const { expiryTime, createTime, isOwner, error, responseCode: errorResponseCode } = await domainInfo({ sld })
-      if (!(expiry > expiryTime)) {
+      const info = await domainInfo({ sld })
+      if (!(expiry > info.expiryTime)) {
         return res.status(StatusCodes.BAD_REQUEST).json({
           error: 'domain expires first on blockchain. Must renew on-chain first to beyond web2 expiry time',
           expiry,
-          web2Expiry: expiryTime
+          web2Expiry: info.expiryTime
         })
       }
-      if (!isOwner) {
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          error: 'domain is not owned by dot-country'
-        })
-      }
-      if (error) {
-        return res.status(StatusCodes.BAD_REQUEST).json({
-          error, errorResponseCode,
-        })
-      }
-      const { success, pricePaid, orderId, responseCode, error: responseText, traceId } = await renewDomain({ sld })
-      const p = await Renewal.addNew({
-        domain,
-        pricePaid,
-        orderId,
-        domainCreationTime: createTime,
-        domainExpiryTime: expiryTime,
-        duration: 1,
-        responseCode,
-        responseText,
-        traceId,
-      })
-      Logger.log('[/renew]', p)
-      res.json({ success, domainCreationTime: createTime, domainExpiryTime: expiryTime, duration: 1, responseText, traceId })
+      await executeRenewal({ domain, sld, info, res, tag: '/renew' })
+    } catch (ex) {
+      console.error(ex)
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })
+    }
+  })
+
+// Force-renews a domain at the registrar without any blockchain verification. Requires an admin API key.
+router.post('/admin/renew',
+  limiter(),
+  requireAdminApiKey,
+  body('domain').isLength({ min: 1, max: 32 }).trim().matches(`^[a-z0-9-]+\\.${appConfig.tld}$`),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ errors: errors.array() })
+    }
+    const { domain } = req.body
+    console.log('[/admin/renew]', { domain })
+    try {
+      const sld = domain.split('.')[0]
+      const info = await domainInfo({ sld })
+      await executeRenewal({ domain, sld, info, res, tag: '/admin/renew' })
     } catch (ex) {
       console.error(ex)
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'internal error' })

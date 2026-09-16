@@ -1,0 +1,15 @@
+{
+  "name": "cloudflare-worker-proxy",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "node run.js deploy",
+    "dev": "node run.js dev",
+    "tail": "node run.js tail"
+  },
+  "devDependencies": {
+    "dotenv": "^17.4.2",
+    "wrangler": "^4.132.0"
+  }
+}
